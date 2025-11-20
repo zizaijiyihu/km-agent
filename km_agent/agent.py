@@ -32,7 +32,26 @@ class KMAgent:
 2. 如果用户想要新增知识库，你需要提醒用户"点击输入框的知识标识，可以上传您的知识"
 3. 如果知识库查询之后看不到匹配的答案，告诉用户知识库目前还没有此类信息
 4. 你的结果可以是没有信息，但是一定不要自己编造信息
-5. 回答时要基于知识库内容，引用具体的文档和页码
+5. **回答格式要求**：
+   - 使用 Markdown 格式组织回答，严禁使用HTML标签
+   - 使用标题、列表、粗体等格式使内容更清晰
+   - 在回答的最后，必须添加"引用文档"部分
+   - **重要：引用文档必须使用Markdown链接语法，不能使用HTML <a>标签**
+   - **引用格式（请严格遵守，直接使用此格式）**：
+
+     **引用文档：**
+     - 📄 [居住证办理.pdf:2](http://pdf/居住证办理.pdf:2)
+     - 📄 [另一个文档.pdf:3](http://pdf/另一个文档.pdf:3)
+
+   - **Markdown链接格式规则**：
+     * 显示文本格式：`文档名.pdf:页码`
+     * 链接地址格式：`http://pdf/文档名.pdf:页码`
+     * 完整示例：`[居住证办理.pdf:2](http://pdf/居住证办理.pdf:2)` ✓
+     * 错误示例：
+       - `[居住证办理.pdf:2](居住证办理.pdf:2)` ✗ 链接地址缺少 http://pdf/ 前缀
+       - `[居住证办理.pdf:2]()` ✗ 链接地址为空
+       - `<a href="">居住证办理.pdf:2</a>` ✗ 禁止使用HTML
+   - **关键**：链接地址必须是 `http://pdf/文档名.pdf:页码` 格式！
 
 你有以下工具可以使用：
 - search_knowledge: 搜索知识库，返回相关的知识切片
@@ -347,6 +366,144 @@ class KMAgent:
             "tool_calls": tool_calls_made,
             "history": messages
         }
+
+    def chat_stream(self, user_message: str, history: Optional[List[Dict]] = None):
+        """
+        Chat with the agent using streaming response
+
+        Args:
+            user_message: User's message
+            history: Optional conversation history
+
+        Yields:
+            Dictionary chunks containing:
+            - type: 'tool_call' | 'content' | 'done'
+            - data: Tool call info or content chunk
+        """
+        if history is None:
+            history = []
+
+        # Add system prompt if this is the first message
+        if not history:
+            messages = [{"role": "system", "content": self.SYSTEM_PROMPT}]
+        else:
+            messages = history.copy()
+
+        # Add user message
+        messages.append({"role": "user", "content": user_message})
+
+        tool_calls_made = []
+        max_iterations = 5
+        iteration = 0
+
+        while iteration < max_iterations:
+            iteration += 1
+
+            if self.verbose:
+                print(f"\n[Iteration {iteration}] Calling LLM with streaming...")
+
+            # Call LLM with streaming
+            response = self.llm_client.chat.completions.create(
+                model=self.llm_model,
+                messages=messages,
+                tools=self.tools,
+                tool_choice="auto",
+                stream=True
+            )
+
+            # Collect streaming response
+            collected_content = ""
+            collected_tool_calls = []
+            current_tool_call = None
+
+            for chunk in response:
+                # Check if choices is empty (final chunk in stream)
+                if not chunk.choices:
+                    continue
+
+                delta = chunk.choices[0].delta
+
+                # Handle content streaming
+                if delta.content:
+                    collected_content += delta.content
+                    # Yield content chunk
+                    yield {
+                        "type": "content",
+                        "data": delta.content
+                    }
+
+                # Handle tool calls
+                if delta.tool_calls:
+                    for tc_chunk in delta.tool_calls:
+                        if tc_chunk.index is not None:
+                            # New tool call
+                            while len(collected_tool_calls) <= tc_chunk.index:
+                                collected_tool_calls.append({
+                                    "id": "",
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""}
+                                })
+                            current_tool_call = collected_tool_calls[tc_chunk.index]
+
+                        if tc_chunk.id:
+                            current_tool_call["id"] = tc_chunk.id
+                        if tc_chunk.function:
+                            if tc_chunk.function.name:
+                                current_tool_call["function"]["name"] = tc_chunk.function.name
+                            if tc_chunk.function.arguments:
+                                current_tool_call["function"]["arguments"] += tc_chunk.function.arguments
+
+            # Add assistant message to history
+            messages.append({
+                "role": "assistant",
+                "content": collected_content,
+                "tool_calls": collected_tool_calls if collected_tool_calls else None
+            })
+
+            # If no tool calls, we're done
+            if not collected_tool_calls:
+                yield {
+                    "type": "done",
+                    "data": {
+                        "tool_calls": tool_calls_made,
+                        "history": messages
+                    }
+                }
+                break
+
+            # Execute tool calls
+            for tool_call in collected_tool_calls:
+                tool_name = tool_call["function"]["name"]
+                tool_args = json.loads(tool_call["function"]["arguments"])
+
+                if self.verbose:
+                    print(f"[Iteration {iteration}] Executing tool: {tool_name}")
+
+                # Yield tool call notification
+                yield {
+                    "type": "tool_call",
+                    "data": {
+                        "tool": tool_name,
+                        "arguments": tool_args
+                    }
+                }
+
+                # Execute tool
+                tool_result = self._execute_tool(tool_name, tool_args)
+
+                # Record tool call
+                tool_calls_made.append({
+                    "tool": tool_name,
+                    "arguments": tool_args,
+                    "result": json.loads(tool_result)
+                })
+
+                # Add tool result to messages
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": tool_result
+                })
 
     def run(self):
         """

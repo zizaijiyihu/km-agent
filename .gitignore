@@ -35,17 +35,38 @@ env/
 .DS_Store
 Thumbs.db
 
-# Test files
+# PDF files (uploaded documents)
 *.pdf
-/tmp/
-test_output.json
 
-# 只保留 pdf_to_json
-/pdf_to_json.py
-/test_converter.py
-/simple_test.py
-/service_demo.py
-/test_progress_new.py
-/README.md
-/requirements.txt
-/claude.md
+# Test files and temporary documentation
+test_*.py
+service_demo.py
+check_qdrant.py
+*_GUIDE.md
+*_SUMMARY.md
+*_USAGE.md
+*_REFERENCE.md
+*_MECHANISM.md
+APP_API_GUIDE.md
+IMPLEMENTATION_SUMMARY.md
+KM_AGENT_USAGE.md
+QUICK_TEST_REFERENCE.md
+TEST_SCRIPTS_GUIDE.md
+UPLOAD_PROGRESS_MECHANISM.md
+
+# Temporary files
+/tmp/
+*.log
+*.pid
+
+# Frontend
+ui/node_modules/
+ui/dist/
+ui/.env
+
+# Upload directories
+/km_agent_uploads/
+/tmp/km_agent_uploads/
+
+# Keep CLAUDE.md (project instructions)
+!CLAUDE.md

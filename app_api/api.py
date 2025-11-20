@@ -12,8 +12,9 @@ Provides HTTP endpoints for:
 import os
 import sys
 import time
+import json
 import threading
-from flask import Flask, request, jsonify, Response, stream_with_context
+from flask import Flask, request, jsonify, Response, stream_with_context, send_file
 from werkzeug.utils import secure_filename
 
 # Add parent directory to path
@@ -85,7 +86,7 @@ def create_app():
     @app.route('/api/chat', methods=['POST'])
     def chat():
         """
-        Chat with KM Agent (supports multi-turn conversation)
+        Chat with KM Agent using streaming (SSE)
 
         Request body:
         {
@@ -93,13 +94,11 @@ def create_app():
             "history": [...]  // optional, conversation history
         }
 
-        Response:
-        {
-            "success": true,
-            "response": "agent's response",
-            "tool_calls": [...],
-            "history": [...]  // updated history for next turn
-        }
+        Response: Server-Sent Events (SSE) stream
+        Event types:
+        - content: Streaming response content
+        - tool_call: Tool execution notification
+        - done: Final result with history
         """
         try:
             data = request.get_json()
@@ -113,15 +112,26 @@ def create_app():
             user_message = data['message']
             history = data.get('history', None)
 
-            # Chat with agent
-            result = km_agent.chat(user_message, history)
+            def generate_stream():
+                """Generate SSE stream from agent"""
+                try:
+                    for chunk in km_agent.chat_stream(user_message, history):
+                        yield f"data: {json.dumps(chunk)}\n\n"
+                except Exception as e:
+                    error_chunk = {
+                        "type": "error",
+                        "data": {"error": str(e)}
+                    }
+                    yield f"data: {json.dumps(error_chunk)}\n\n"
 
-            return jsonify({
-                "success": True,
-                "response": result["response"],
-                "tool_calls": result["tool_calls"],
-                "history": result["history"]
-            })
+            return Response(
+                stream_with_context(generate_stream()),
+                mimetype='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'X-Accel-Buffering': 'no'
+                }
+            )
 
         except Exception as e:
             return jsonify({
@@ -217,17 +227,16 @@ def create_app():
         owner = request.form.get('owner', config.DEFAULT_USER)
         is_public = int(request.form.get('is_public', 0))
 
-        # Save uploaded file
-        # Keep original filename for database, use secure name for file system
-        original_filename = file.filename
-        safe_filename = secure_filename(file.filename)
+        # Save uploaded file to permanent storage
+        # Use original filename directly (no timestamp prefix needed)
+        # If file exists, it will be overwritten (vectorizer deletes old records first)
+        filename = file.filename
 
-        # If secure_filename removes all characters (e.g., Chinese names), use timestamp
-        if not safe_filename or safe_filename == os.path.splitext(original_filename)[1].lstrip('.'):
-            import time
-            safe_filename = f"{int(time.time() * 1000)}_{original_filename}"
+        # Create user-specific directory for PDF storage
+        user_pdf_dir = os.path.join(config.PDF_STORAGE_DIR, owner)
+        os.makedirs(user_pdf_dir, exist_ok=True)
 
-        filepath = os.path.join(config.UPLOAD_FOLDER, safe_filename)
+        filepath = os.path.join(user_pdf_dir, filename)
         file.save(filepath)
 
         def generate_progress():
@@ -235,23 +244,48 @@ def create_app():
             try:
                 # Start vectorization in background
                 def vectorize():
-                    vectorizer.vectorize_pdf(filepath, owner=owner, is_public=is_public, display_filename=original_filename, verbose=False)
+                    vectorizer.vectorize_pdf(filepath, owner=owner, is_public=is_public, verbose=False)
 
                 thread = threading.Thread(target=vectorize)
                 thread.start()
 
-                # Poll progress and send updates
-                last_progress = -1
+                # Poll progress and send updates with timeout protection
+                last_page = -1
+                timeout = 300  # 5 minutes maximum
+                start_time = time.time()
+
                 while not vectorizer.progress.is_completed and not vectorizer.progress.is_error:
+                    # Check timeout
+                    if time.time() - start_time > timeout:
+                        error_msg = {
+                            "stage": "error",
+                            "error": "处理超时，请检查文档大小或稍后重试",
+                            "progress_percent": 0
+                        }
+                        yield f"data: {json.dumps(error_msg)}\n\n"
+                        break
+
+                    # Check if thread is still alive
+                    if not thread.is_alive():
+                        # Thread died without setting completion/error status
+                        if not vectorizer.progress.is_completed and not vectorizer.progress.is_error:
+                            error_msg = {
+                                "stage": "error",
+                                "error": "处理过程异常终止，请查看服务器日志",
+                                "progress_percent": 0
+                            }
+                            yield f"data: {json.dumps(error_msg)}\n\n"
+                            break
+
                     progress_data = vectorizer.progress.get()
-                    current_progress = progress_data.get('progress_percent', 0)
+                    current_page = progress_data.get('current_page', 0)
 
-                    # Only send update if progress changed
-                    if current_progress != last_progress:
-                        yield f"data: {jsonify(progress_data).get_data(as_text=True)}\n\n"
-                        last_progress = current_progress
+                    # Send update when page changes
+                    if current_page != last_page:
+                        yield f"data: {json.dumps(progress_data)}\n\n"
+                        last_page = current_page
 
-                    time.sleep(0.5)
+                    time.sleep(0.3)
 
                 # Wait for thread to complete
                 thread.join(timeout=5)
@@ -259,10 +293,10 @@ def create_app():
                 # Send final result
                 if vectorizer.progress.is_completed:
                     final_data = vectorizer.progress.get()
-                    yield f"data: {jsonify(final_data).get_data(as_text=True)}\n\n"
+                    yield f"data: {json.dumps(final_data)}\n\n"
                 elif vectorizer.progress.is_error:
                     error_data = vectorizer.progress.get()
-                    yield f"data: {jsonify(error_data).get_data(as_text=True)}\n\n"
+                    yield f"data: {json.dumps(error_data)}\n\n"
 
             except Exception as e:
                 error_msg = {
@@ -270,10 +304,8 @@ def create_app():
                     "error": str(e),
                     "progress_percent": 0
                 }
-                yield f"data: {jsonify(error_msg).get_data(as_text=True)}\n\n"
-
-            finally:
-                # Clean up uploaded file
+                yield f"data: {json.dumps(error_msg)}\n\n"
+                # Clean up file on error
                 try:
                     if os.path.exists(filepath):
                         os.remove(filepath)
@@ -308,13 +340,26 @@ def create_app():
         try:
             owner = request.args.get('owner', config.DEFAULT_USER)
 
-            # Delete document
+            # Delete document from vector database
             vectorizer.delete_document(filename, owner, verbose=False)
+
+            # Also delete physical PDF file (direct path, exact match)
+            user_pdf_dir = os.path.join(config.PDF_STORAGE_DIR, owner)
+            file_path = os.path.join(user_pdf_dir, filename)
+            deleted_file = False
+
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    deleted_file = True
+                except Exception as e:
+                    print(f"Warning: Failed to delete file {file_path}: {e}")
 
             return jsonify({
                 "success": True,
                 "filename": filename,
                 "owner": owner,
+                "file_deleted": deleted_file,
                 "message": "Document deleted successfully"
             })
 
@@ -379,6 +424,46 @@ def create_app():
                 return jsonify(result)
             else:
                 return jsonify(result), 500
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
+    # ==================== API Endpoint 6: Get PDF File Content ====================
+    @app.route('/api/documents/<filename>/content', methods=['GET'])
+    def get_document_content(filename):
+        """
+        Get PDF file content for viewing
+
+        Query params:
+        - owner: username (default: "hu")
+
+        Returns:
+            PDF file content or 404 if not found
+        """
+        try:
+            owner = request.args.get('owner', config.DEFAULT_USER)
+            user_pdf_dir = os.path.join(config.PDF_STORAGE_DIR, owner)
+
+            if not os.path.exists(user_pdf_dir):
+                return jsonify({
+                    "success": False,
+                    "error": "User directory not found"
+                }), 404
+
+            # Direct file path (no timestamp prefix, exact match)
+            pdf_path = os.path.join(user_pdf_dir, filename)
+
+            if os.path.exists(pdf_path):
+                return send_file(pdf_path, mimetype='application/pdf')
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "File not found"
+                }), 404
 
         except Exception as e:
             return jsonify({

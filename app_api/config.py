@@ -29,7 +29,8 @@ VECTOR_SIZE = 4096
 DEFAULT_USER = "hu"
 
 # Upload Configuration
-UPLOAD_FOLDER = "/tmp/km_agent_uploads"
+UPLOAD_FOLDER = "/tmp/km_agent_uploads"  # 临时上传目录
+PDF_STORAGE_DIR = "/Users/xiaohu/projects/km_agent_uploads"  # PDF永久存储目录
 ALLOWED_EXTENSIONS = {'pdf'}
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
 

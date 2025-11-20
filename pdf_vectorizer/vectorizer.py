@@ -303,206 +303,224 @@ class PDFVectorizer:
         # Use display_filename if provided, otherwise extract from path
         filename = display_filename if display_filename else os.path.basename(pdf_path)
 
-        # Update progress: Initialization
-        self.progress.update(
-            stage="init",
-            message=f"开始处理文档: {filename}",
-            current_step="初始化",
-            progress_percent=0,
-            data={"filename": filename, "owner": owner}
-        )
-
-        if verbose:
-            print(f"\n{'='*60}")
-            print(f"Processing PDF: {filename}")
-            print(f"Owner: {owner}")
-            print(f"{'='*60}\n")
-
-        # Step 0: Delete existing document with same filename and owner
-        self.progress.update(
-            message="检查并删除已存在的文档",
-            current_step="去重处理",
-            progress_percent=5
-        )
-
-        if verbose:
-            print("Step 0: Checking for duplicate documents...")
-        self.delete_document(filename, owner, verbose)
-
-        # Step 1: Parse PDF to JSON
-        self.progress.update(
-            stage="parsing",
-            message="正在解析PDF文档...",
-            current_step="PDF解析",
-            progress_percent=10
-        )
-
-        if verbose:
-            print("\nStep 1: Parsing PDF...")
-        result = self.pdf_converter.convert(pdf_path, analyze_images=True, verbose=False)
-
-        total_pages = result['total_pages']
-        self.progress.update(
-            total_pages=total_pages,
-            message=f"PDF解析完成，共 {total_pages} 页",
-            progress_percent=15
-        )
-
-        if verbose:
-            print(f"✓ Parsed {total_pages} pages\n")
-
-        # Step 2-5: Process each page
-        self.progress.update(stage="processing")
-        points = []
-
-        # Get the maximum point_id from existing data to avoid ID conflicts
         try:
-            collection_info = self.qdrant_client.get_collection(self.collection_name)
-            if collection_info.points_count > 0:
-                # Scroll through all points to find max ID
-                scroll_result = self.qdrant_client.scroll(
-                    collection_name=self.collection_name,
-                    limit=10000,
-                    with_payload=False,
-                    with_vectors=False
-                )
-                existing_ids = [point.id for point in scroll_result[0]]
-                point_id = max(existing_ids) + 1 if existing_ids else 0
-            else:
-                point_id = 0
-        except Exception as e:
+            # Update progress: Initialization
+            self.progress.update(
+                stage="init",
+                message=f"开始处理文档: {filename}",
+                current_step="初始化",
+                progress_percent=0,
+                data={"filename": filename, "owner": owner}
+            )
+
             if verbose:
-                print(f"⚠ Warning: Could not get max point_id, starting from 0: {e}")
-            point_id = 0
+                print(f"\n{'='*60}")
+                print(f"Processing PDF: {filename}")
+                print(f"Owner: {owner}")
+                print(f"{'='*60}\n")
 
-        for page in result['pages']:
-            page_number = page['page_number']
-            paragraphs = page['paragraphs']
+            # Step 0: Delete existing document with same filename and owner
+            self.progress.update(
+                message="检查并删除已存在的文档",
+                current_step="去重处理",
+                progress_percent=5
+            )
 
-            # Combine all paragraphs into page content
-            page_content = "\n\n".join(paragraphs)
+            if verbose:
+                print("Step 0: Checking for duplicate documents...")
+            self.delete_document(filename, owner, verbose)
 
-            if not page_content.strip():
+            # Step 1: Parse PDF to JSON
+            self.progress.update(
+                stage="parsing",
+                message="正在解析PDF文档...",
+                current_step="PDF解析",
+                progress_percent=10
+            )
+
+            if verbose:
+                print("\nStep 1: Parsing PDF...")
+            result = self.pdf_converter.convert(pdf_path, analyze_images=True, verbose=False)
+
+            total_pages = result['total_pages']
+            self.progress.update(
+                total_pages=total_pages,
+                message=f"PDF解析完成，共 {total_pages} 页",
+                progress_percent=15
+            )
+
+            if verbose:
+                print(f"✓ Parsed {total_pages} pages\n")
+
+            # Step 2-5: Process each page
+            self.progress.update(stage="processing")
+            points = []
+
+            # Get the maximum point_id from existing data to avoid ID conflicts
+            try:
+                collection_info = self.qdrant_client.get_collection(self.collection_name)
+                if collection_info.points_count > 0:
+                    # Scroll through all points to find max ID
+                    scroll_result = self.qdrant_client.scroll(
+                        collection_name=self.collection_name,
+                        limit=10000,
+                        with_payload=False,
+                        with_vectors=False
+                    )
+                    existing_ids = [point.id for point in scroll_result[0]]
+                    point_id = max(existing_ids) + 1 if existing_ids else 0
+                else:
+                    point_id = 0
+            except Exception as e:
                 if verbose:
-                    print(f"Page {page_number}: Empty, skipping...")
-                continue
+                    print(f"⚠ Warning: Could not get max point_id, starting from 0: {e}")
+                point_id = 0
 
-            # Calculate progress (15% - 85% range for processing)
-            page_progress = 15 + (page_number / total_pages) * 70
+            for page in result['pages']:
+                page_number = page['page_number']
+                paragraphs = page['paragraphs']
 
-            # Update progress: Processing page
+                # Combine all paragraphs into page content
+                page_content = "\n\n".join(paragraphs)
+
+                if not page_content.strip():
+                    if verbose:
+                        print(f"Page {page_number}: Empty, skipping...")
+                    continue
+
+                # Calculate progress (15% - 85% range for processing)
+                page_progress = 15 + (page_number / total_pages) * 70
+
+                # Update progress: Processing page
+                self.progress.update(
+                    current_page=page_number,
+                    message=f"正在处理第 {page_number}/{total_pages} 页",
+                    current_step="生成摘要",
+                    progress_percent=page_progress,
+                    data={"page_number": page_number}
+                )
+
+                if verbose:
+                    print(f"Processing Page {page_number}...")
+
+                # Step 2: Generate summary
+                if verbose:
+                    print(f"  - Generating summary...")
+                summary = self._generate_summary(page_content, page_number)
+
+                # Step 3: Get embedding vectors for BOTH summary and content
+                self.progress.update(
+                    current_step="摘要向量化",
+                    progress_percent=page_progress + (70 / total_pages * 0.3),
+                    message=f"第 {page_number} 页：摘要向量化"
+                )
+
+                if verbose:
+                    print(f"  - Generating summary vector...")
+                summary_embedding = self._get_embedding(summary)
+
+                self.progress.update(
+                    current_step="内容向量化",
+                    progress_percent=page_progress + (70 / total_pages * 0.6),
+                    message=f"第 {page_number} 页：内容向量化"
+                )
+
+                if verbose:
+                    print(f"  - Generating content vector...")
+                content_embedding = self._get_embedding(page_content)
+
+                # Step 4: Prepare point with dual vectors
+                point = PointStruct(
+                    id=point_id,
+                    vector={
+                        "summary_vector": summary_embedding,
+                        "content_vector": content_embedding
+                    },
+                    payload={
+                        "owner": owner,
+                        "filename": filename,
+                        "page_number": page_number,
+                        "summary": summary,
+                        "content": page_content,
+                        "is_public": is_public  # 0 = private (default), 1 = public
+                    }
+                )
+                points.append(point)
+                point_id += 1
+
+                self.progress.update(
+                    current_step="页面完成",
+                    progress_percent=page_progress + (70 / total_pages),
+                    message=f"第 {page_number} 页处理完成",
+                    data={
+                        "page_number": page_number,
+                        "summary_length": len(summary),
+                        "content_length": len(page_content)
+                    }
+                )
+
+                if verbose:
+                    print(f"  ✓ Page {page_number} processed (summary: {len(summary)} chars, content: {len(page_content)} chars)\n")
+
+            # Step 5: Store in Qdrant
             self.progress.update(
-                current_page=page_number,
-                message=f"正在处理第 {page_number}/{total_pages} 页",
-                current_step="生成摘要",
-                progress_percent=page_progress,
-                data={"page_number": page_number}
+                stage="storing",
+                current_page=total_pages,
+                message=f"正在存储 {len(points)} 个向量到数据库...",
+                current_step="数据存储",
+                progress_percent=90,
+                data={"total_vectors": len(points)}
             )
 
             if verbose:
-                print(f"Processing Page {page_number}...")
+                print(f"Storing {len(points)} vectors in Qdrant...")
 
-            # Step 2: Generate summary
-            if verbose:
-                print(f"  - Generating summary...")
-            summary = self._generate_summary(page_content, page_number)
-
-            # Step 3: Get embedding vectors for BOTH summary and content
-            self.progress.update(
-                current_step="摘要向量化",
-                progress_percent=page_progress + (70 / total_pages * 0.3),
-                message=f"第 {page_number} 页：摘要向量化"
+            self.qdrant_client.upsert(
+                collection_name=self.collection_name,
+                points=points
             )
 
-            if verbose:
-                print(f"  - Generating summary vector...")
-            summary_embedding = self._get_embedding(summary)
-
-            self.progress.update(
-                current_step="内容向量化",
-                progress_percent=page_progress + (70 / total_pages * 0.6),
-                message=f"第 {page_number} 页：内容向量化"
-            )
-
-            if verbose:
-                print(f"  - Generating content vector...")
-            content_embedding = self._get_embedding(page_content)
-
-            # Step 4: Prepare point with dual vectors
-            point = PointStruct(
-                id=point_id,
-                vector={
-                    "summary_vector": summary_embedding,
-                    "content_vector": content_embedding
-                },
-                payload={
-                    "owner": owner,
-                    "filename": filename,
-                    "page_number": page_number,
-                    "summary": summary,
-                    "content": page_content,
-                    "is_public": is_public  # 0 = private (default), 1 = public
-                }
-            )
-            points.append(point)
-            point_id += 1
+            # Completed
+            final_result = {
+                "filename": filename,
+                "owner": owner,
+                "total_pages": total_pages,
+                "processed_pages": len(points),
+                "collection": self.collection_name
+            }
 
             self.progress.update(
-                current_step="页面完成",
-                progress_percent=page_progress + (70 / total_pages),
-                message=f"第 {page_number} 页处理完成",
-                data={
-                    "page_number": page_number,
-                    "summary_length": len(summary),
-                    "content_length": len(page_content)
-                }
+                stage="completed",
+                message=f"处理完成！成功存储 {len(points)} 页",
+                current_step="完成",
+                progress_percent=100,
+                data=final_result
             )
 
             if verbose:
-                print(f"  ✓ Page {page_number} processed (summary: {len(summary)} chars, content: {len(page_content)} chars)\n")
+                print(f"✓ Successfully stored {len(points)} pages in Qdrant\n")
+                print(f"{'='*60}")
+                print(f"Processing complete!")
+                print(f"{'='*60}\n")
 
-        # Step 5: Store in Qdrant
-        self.progress.update(
-            stage="storing",
-            current_page=total_pages,
-            message=f"正在存储 {len(points)} 个向量到数据库...",
-            current_step="数据存储",
-            progress_percent=90,
-            data={"total_vectors": len(points)}
-        )
-
-        if verbose:
-            print(f"Storing {len(points)} vectors in Qdrant...")
-
-        self.qdrant_client.upsert(
-            collection_name=self.collection_name,
-            points=points
-        )
-
-        # Completed
-        final_result = {
-            "filename": filename,
-            "owner": owner,
-            "total_pages": total_pages,
-            "processed_pages": len(points),
-            "collection": self.collection_name
-        }
-
-        self.progress.update(
-            stage="completed",
-            message=f"处理完成！成功存储 {len(points)} 页",
-            current_step="完成",
-            progress_percent=100,
-            data=final_result
-        )
-
-        if verbose:
-            print(f"✓ Successfully stored {len(points)} pages in Qdrant\n")
-            print(f"{'='*60}")
-            print(f"Processing complete!")
-            print(f"{'='*60}\n")
-
-        return final_result
+            return final_result
+        except Exception as e:
+            error_msg = f"向量化失败: {str(e)}"
+            if verbose:
+                print(f"\n{'='*60}")
+                print(f"ERROR: {error_msg}")
+                print(f"{'='*60}\n")
+            
+            # 更新进度状态为错误
+            self.progress.update(
+                stage="error",
+                message=error_msg,
+                error=str(e),
+                progress_percent=0
+            )
+            
+            # 向上抛出异常,让调用者知道失败了
+            raise
 
     def search(
         self,
