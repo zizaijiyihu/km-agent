@@ -14,6 +14,8 @@ import sys
 import time
 import json
 import threading
+import tempfile
+from io import BytesIO
 from flask import Flask, request, jsonify, Response, stream_with_context, send_file
 from werkzeug.utils import secure_filename
 
@@ -22,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from km_agent import KMAgent
 from pdf_vectorizer import PDFVectorizer
+import file_repository
 from app_api import config
 
 
@@ -44,9 +47,6 @@ def init_services():
 
     # Initialize PDF Vectorizer (uses ks_infrastructure, defaults from pdf_vectorizer)
     vectorizer = PDFVectorizer()
-
-    # Ensure upload directory exists
-    os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
 
     print("✓ Services initialized successfully")
 
@@ -136,8 +136,9 @@ def create_app():
                     "filename": "doc.pdf",
                     "owner": "hu",
                     "is_public": 0,
-                    "point_id": 123,
-                    "page_count": 5
+                    "file_size": 12345,
+                    "created_at": "2025-01-01T12:00:00",
+                    "content_type": "application/pdf"
                 }
             ]
         }
@@ -145,8 +146,24 @@ def create_app():
         try:
             owner = request.args.get('owner', config.DEFAULT_USER)
 
-            # Get document list
-            documents = vectorizer.get_document_list(owner=owner, verbose=False)
+            # Get document list from file_repository
+            files = file_repository.get_owner_file_list(
+                owner=owner,
+                include_public=True
+            )
+
+            # Format response
+            documents = [
+                {
+                    "filename": f["filename"],
+                    "owner": f["owner"],
+                    "is_public": f["is_public"],
+                    "file_size": f["file_size"],
+                    "created_at": f["created_at"].isoformat() if f.get("created_at") else None,
+                    "content_type": f.get("content_type")
+                }
+                for f in files
+            ]
 
             return jsonify({
                 "success": True,
@@ -205,30 +222,59 @@ def create_app():
         # Get parameters
         owner = request.form.get('owner', config.DEFAULT_USER)
         is_public = int(request.form.get('is_public', 0))
-
-        # Save uploaded file to permanent storage
-        # Use original filename directly (no timestamp prefix needed)
-        # If file exists, it will be overwritten (vectorizer deletes old records first)
         filename = file.filename
-
-        # Create user-specific directory for PDF storage
-        user_pdf_dir = os.path.join(config.PDF_STORAGE_DIR, owner)
-        os.makedirs(user_pdf_dir, exist_ok=True)
-
-        filepath = os.path.join(user_pdf_dir, filename)
-        file.save(filepath)
 
         def generate_progress():
             """Generate SSE progress updates"""
+            tmp_filepath = None
             try:
-                # Start vectorization in background
+                # 1. Upload to MinIO + save metadata to MySQL
+                file.seek(0)
+                file_repository.upload_file(
+                    username=owner,
+                    filename=filename,
+                    file_data=file,
+                    bucket='kms',
+                    content_type='application/pdf',
+                    is_public=is_public
+                )
+
+                # 2. Download from MinIO to temporary file
+                content = file_repository.get_file(
+                    username=owner,
+                    filename=filename,
+                    bucket='kms'
+                )
+
+                if not content:
+                    raise Exception("Failed to retrieve uploaded file from MinIO")
+
+                # Create temporary file
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                    tmp_file.write(content)
+                    tmp_filepath = tmp_file.name
+
+                # 3. Vectorize using temporary file
                 def vectorize():
-                    vectorizer.vectorize_pdf(filepath, owner=owner, is_public=is_public, verbose=False)
+                    try:
+                        vectorizer.vectorize_pdf(
+                            tmp_filepath,
+                            owner=owner,
+                            display_filename=filename,
+                            verbose=False
+                        )
+                    finally:
+                        # Clean up temporary file
+                        if tmp_filepath and os.path.exists(tmp_filepath):
+                            try:
+                                os.remove(tmp_filepath)
+                            except Exception as e:
+                                print(f"Warning: Failed to delete temp file {tmp_filepath}: {e}")
 
                 thread = threading.Thread(target=vectorize)
                 thread.start()
 
-                # Poll progress and send updates with timeout protection
+                # 4. Poll progress and send SSE updates
                 last_page = -1
                 timeout = 300  # 5 minutes maximum
                 start_time = time.time()
@@ -269,7 +315,7 @@ def create_app():
                 # Wait for thread to complete
                 thread.join(timeout=5)
 
-                # Send final result
+                # 5. Send final result
                 if vectorizer.progress.is_completed:
                     final_data = vectorizer.progress.get()
                     yield f"data: {json.dumps(final_data)}\n\n"
@@ -284,12 +330,12 @@ def create_app():
                     "progress_percent": 0
                 }
                 yield f"data: {json.dumps(error_msg)}\n\n"
-                # Clean up file on error
-                try:
-                    if os.path.exists(filepath):
-                        os.remove(filepath)
-                except:
-                    pass
+                # Clean up temp file on error
+                if tmp_filepath and os.path.exists(tmp_filepath):
+                    try:
+                        os.remove(tmp_filepath)
+                    except:
+                        pass
 
         return Response(
             stream_with_context(generate_progress()),
@@ -319,26 +365,20 @@ def create_app():
         try:
             owner = request.args.get('owner', config.DEFAULT_USER)
 
-            # Delete document from vector database
+            # 1. Delete from vector database (Qdrant)
             vectorizer.delete_document(filename, owner, verbose=False)
 
-            # Also delete physical PDF file (direct path, exact match)
-            user_pdf_dir = os.path.join(config.PDF_STORAGE_DIR, owner)
-            file_path = os.path.join(user_pdf_dir, filename)
-            deleted_file = False
-
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                    deleted_file = True
-                except Exception as e:
-                    print(f"Warning: Failed to delete file {file_path}: {e}")
+            # 2. Delete file and metadata (MinIO + MySQL)
+            file_repository.delete_file(
+                owner=owner,
+                filename=filename,
+                bucket='kms'
+            )
 
             return jsonify({
                 "success": True,
                 "filename": filename,
                 "owner": owner,
-                "file_deleted": deleted_file,
                 "message": "Document deleted successfully"
             })
 
@@ -366,7 +406,6 @@ def create_app():
         Response:
         {
             "success": true,
-            "updated_count": 3,
             "filename": "doc.pdf",
             "owner": "hu",
             "is_public": 1
@@ -391,18 +430,26 @@ def create_app():
 
             owner = request.args.get('owner', config.DEFAULT_USER)
 
-            # Update visibility
-            result = vectorizer.update_document_visibility(
-                filename=filename,
+            # Update visibility using file_repository
+            success = file_repository.set_file_public(
                 owner=owner,
-                is_public=is_public,
-                verbose=False
+                filename=filename,
+                is_public=is_public
             )
 
-            if result['success']:
-                return jsonify(result)
+            if success:
+                return jsonify({
+                    "success": True,
+                    "filename": filename,
+                    "owner": owner,
+                    "is_public": is_public,
+                    "message": "Visibility updated successfully"
+                })
             else:
-                return jsonify(result), 500
+                return jsonify({
+                    "success": False,
+                    "error": "File not found or permission denied"
+                }), 404
 
         except Exception as e:
             return jsonify({
@@ -425,19 +472,21 @@ def create_app():
         """
         try:
             owner = request.args.get('owner', config.DEFAULT_USER)
-            user_pdf_dir = os.path.join(config.PDF_STORAGE_DIR, owner)
 
-            if not os.path.exists(user_pdf_dir):
-                return jsonify({
-                    "success": False,
-                    "error": "User directory not found"
-                }), 404
+            # Get file from MinIO
+            content = file_repository.get_file(
+                username=owner,
+                filename=filename,
+                bucket='kms'
+            )
 
-            # Direct file path (no timestamp prefix, exact match)
-            pdf_path = os.path.join(user_pdf_dir, filename)
-
-            if os.path.exists(pdf_path):
-                return send_file(pdf_path, mimetype='application/pdf')
+            if content:
+                return send_file(
+                    BytesIO(content),
+                    mimetype='application/pdf',
+                    as_attachment=False,
+                    download_name=filename
+                )
             else:
                 return jsonify({
                     "success": False,

@@ -4,10 +4,11 @@
 
 ## 功能特性
 
-- ✅ **聊天接口** - 与 KM Agent 对话，支持多轮连续对话
-- ✅ **文档列表** - 获取用户有权访问的文档列表
-- ✅ **文件上传** - 上传 PDF 并向量化，支持 SSE 实时进度
-- ✅ **文件删除** - 删除指定文档
+- ✅ **聊天接口** - 与 KM Agent 对话，支持 SSE 流式响应
+- ✅ **文档列表** - 获取用户有权访问的文档列表（MinIO + MySQL）
+- ✅ **文件上传** - 上传 PDF 到 MinIO 并向量化到 Qdrant，支持 SSE 实时进度
+- ✅ **文件下载** - 从 MinIO 获取文档内容
+- ✅ **文件删除** - 删除文档（MinIO + MySQL + Qdrant）
 - ✅ **权限管理** - 修改文档公开/私有状态
 
 ## 安装依赖
@@ -49,30 +50,24 @@ python api.py
 }
 ```
 
-**Response**:
-```json
-{
-    "success": true,
-    "response": "Agent 的回复",
-    "tool_calls": [
-        {
-            "tool": "search_knowledge",
-            "arguments": {...},
-            "result": {...}
-        }
-    ],
-    "history": [...]  // 更新后的历史，用于下一轮对话
-}
+**Response**: Server-Sent Events (SSE) 流
+
+**Event Types**:
+```
+data: {"type": "content", "data": "流式内容片段"}
+data: {"type": "tool_call", "data": {"tool_name": "search_knowledge"}}
+data: {"type": "done", "data": {"history": [...]}}
+data: {"type": "error", "data": {"error": "错误信息"}}
 ```
 
 **示例**:
 ```bash
-# 第一轮对话
+# 发起对话
 curl -X POST http://localhost:5000/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "北京人才网的信息"}'
+  -d '{"message": "居住证办理需要什么材料？"}'
 
-# 第二轮对话（带历史）
+# 带历史的对话
 curl -X POST http://localhost:5000/api/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "详细说明一下", "history": [...]}'
@@ -100,8 +95,9 @@ curl -X POST http://localhost:5000/api/chat \
             "filename": "document.pdf",
             "owner": "hu",
             "is_public": 0,
-            "point_id": 123,
-            "page_count": 5
+            "file_size": 123456,
+            "created_at": "2025-01-01T12:00:00",
+            "content_type": "application/pdf"
         }
     ]
 }
@@ -122,7 +118,7 @@ curl http://localhost:5000/api/documents?owner=user123
 
 **Endpoint**: `POST /api/upload`
 
-**功能**: 上传 PDF 文件并向量化，支持 SSE 实时进度更新
+**功能**: 上传 PDF 到 MinIO，保存元数据到 MySQL，并向量化到 Qdrant，支持 SSE 实时进度更新
 
 **Content-Type**: `multipart/form-data`
 
@@ -244,10 +240,10 @@ curl -X DELETE "http://localhost:5000/api/documents/document.pdf?owner=user123"
 ```json
 {
     "success": true,
-    "updated_count": 3,
     "filename": "document.pdf",
     "owner": "hu",
-    "is_public": 1
+    "is_public": 1,
+    "message": "Visibility updated successfully"
 }
 ```
 
@@ -262,6 +258,28 @@ curl -X PUT http://localhost:5000/api/documents/document.pdf/visibility \
 curl -X PUT "http://localhost:5000/api/documents/document.pdf/visibility?owner=user123" \
   -H "Content-Type: application/json" \
   -d '{"is_public": 0}'
+```
+
+---
+
+### 6. 获取文档内容
+
+**Endpoint**: `GET /api/documents/<filename>/content`
+
+**功能**: 从 MinIO 获取 PDF 文件内容用于查看
+
+**Query Parameters**:
+- `owner` (可选): 用户名，默认 "hu"
+
+**Response**: PDF 文件二进制内容
+
+**示例**:
+```bash
+# 获取文档内容
+curl http://localhost:5000/api/documents/document.pdf/content -o document.pdf
+
+# 获取指定用户的文档
+curl "http://localhost:5000/api/documents/document.pdf/content?owner=user123" -o document.pdf
 ```
 
 ---
@@ -297,7 +315,6 @@ curl http://localhost:5000/api/health
 DEFAULT_USER = "hu"
 
 # 上传配置
-UPLOAD_FOLDER = "/tmp/km_agent_uploads"
 ALLOWED_EXTENSIONS = {'pdf'}
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
 
@@ -306,6 +323,8 @@ DEBUG = True
 HOST = "0.0.0.0"
 PORT = 5000
 ```
+
+**注意**: 所有服务配置（LLM、Embedding、Qdrant、MinIO、MySQL）统一在 `ks_infrastructure` 模块中管理
 
 ## 错误处理
 
@@ -329,8 +348,20 @@ HTTP 状态码:
 python -m app_api.api
 ```
 
-### 测试脚本
-见 `test_api/` 目录下的测试脚本。
+### 运行测试
+```bash
+# 设置API地址并运行测试
+API_BASE_URL=http://localhost:5000 python3 app_api/test/test_api.py
+```
+
+测试将自动执行以下场景：
+1. 健康检查
+2. 获取文档列表
+3. 上传并向量化 PDF
+4. 与 Agent 对话
+5. 修改文档可见性
+6. 获取文档内容
+7. 删除文档
 
 ## 安全注意事项
 
@@ -341,10 +372,11 @@ python -m app_api.api
    - 限制文件大小和类型
 
 2. **文件上传**
-   - 使用 `secure_filename()` 防止路径遍历
+   - 文件存储在 MinIO 对象存储中
+   - 元数据保存在 MySQL 数据库
    - 限制文件大小（默认 50MB）
    - 只允许 PDF 文件
-   - 上传后自动清理临时文件
+   - 向量化处理使用临时文件，处理完自动清理
 
 3. **CORS**
    - 如需跨域访问，使用 `flask-cors`
@@ -352,9 +384,11 @@ python -m app_api.api
 ## 技术栈
 
 - **Flask**: Web 框架
-- **SSE**: Server-Sent Events 用于实时进度推送
+- **SSE**: Server-Sent Events 用于流式响应和实时进度推送
 - **KM Agent**: 知识管理对话 Agent
 - **PDF Vectorizer**: PDF 向量化和知识库管理
+- **file_repository**: 文件存储模块（MinIO + MySQL）
+- **ks_infrastructure**: 基础设施服务模块（LLM、Embedding、Qdrant等）
 
 ## 许可证
 
