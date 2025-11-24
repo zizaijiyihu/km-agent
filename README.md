@@ -12,6 +12,7 @@
 - 📄 **PDF 文档管理** - 上传、存储、删除 PDF 文档
 - 🔍 **语义搜索** - 基于向量数据库的智能语义检索
 - 💬 **智能问答** - LLM 驱动的知识库问答，支持多轮对话
+- 🖼️ **图片理解** - 粘贴图片即可分析，AI 自动识别图片内容
 - 📊 **实时进度** - SSE 流式上传进度展示
 - 🔒 **权限控制** - 公开/私有文档管理
 - 📖 **PDF 预览** - 内置 PDF 查看器，支持页码跳转
@@ -19,10 +20,13 @@
 ### 技术亮点
 - **双路向量化** - 同时对摘要和全文内容进行向量化，提升检索精度
 - **流式响应** - SSE 技术实现实时进度更新和流式对话
+- **图片粘贴集成** - 支持粘贴图片，自动上传和 AI 分析，结果智能融入对话
 - **React + Zustand** - 现代化前端架构，状态管理清晰
 - **模块化设计** - 清晰的模块划分，易于扩展和维护
 
 ## 项目架构
+
+> 📚 **详细架构文档**: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ```
 km-agent/
@@ -31,6 +35,7 @@ km-agent/
 ├── pdf_vectorizer/       # PDF 向量化模块
 ├── pdf_to_json/          # PDF 解析模块
 ├── file_repository/      # 文件存储模块
+├── tmp_image_repository/ # 图片分析模块
 ├── ks_infrastructure/    # 基础设施服务
 ├── ui/                   # React 前端界面
 ├── start.sh              # 一键启动脚本
@@ -190,6 +195,12 @@ GET /api/documents/<filename>/content
 ```
 获取 PDF 文件内容用于查看
 
+### 7. 图片分析
+```
+POST /api/analyze-image
+```
+上传图片并使用 AI 视觉服务分析内容
+
 ## 模块介绍
 
 ### 1. app_api - API 服务层
@@ -207,7 +218,10 @@ GET /api/documents/<filename>/content
 ### 5. file_repository - 文件存储
 基于 MinIO 提供文件上传和查询的存储仓库服务，使用 MySQL 管理文件元数据。
 
-### 6. ks_infrastructure - 基础设施
+### 6. tmp_image_repository - 图片分析
+图片上传到临时存储并使用视觉识别服务分析图片内容，支持粘贴图片快速分析。
+
+### 7. ks_infrastructure - 基础设施
 统一的服务工厂方法，用于创建和管理各种基础设施服务实例。
 
 ## 许可证

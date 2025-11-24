@@ -16,7 +16,7 @@ def test_analyze_image():
     """测试单张图片分析"""
     print("=== 测试图片分析功能 ===")
     try:
-        from image_analyzer import analyze_temp_image
+        from tmp_image_repository import analyze_temp_image
 
         # 获取测试图片路径
         test_image_path = os.path.join(os.path.dirname(__file__), 'image.png')
@@ -72,7 +72,7 @@ def test_batch_analyze():
     """测试批量图片分析"""
     print("\n=== 测试批量图片分析功能 ===")
     try:
-        from image_analyzer import batch_analyze_images
+        from tmp_image_repository import batch_analyze_images
 
         # 获取测试图片路径（这里用同一张图片测试）
         test_image_path = os.path.join(os.path.dirname(__file__), 'image.png')
@@ -114,7 +114,7 @@ def test_error_handling():
     """测试错误处理"""
     print("\n=== 测试错误处理 ===")
     try:
-        from image_analyzer import analyze_temp_image
+        from tmp_image_repository import analyze_temp_image
 
         # 测试不存在的文件
         print("测试不存在的文件...")

@@ -66,14 +66,30 @@ function ChatMessage({ message }) {
 
   return (
     <div className={`mb-4 max-w-[80%] ${isUser ? 'ml-auto' : ''}`}>
-      <div className={`p-3 rounded-lg ${
-        isUser
+      <div className={`p-3 rounded-lg ${isUser
           ? 'bg-light-blue rounded-tl-none'
           : 'bg-white border border-gray-100 rounded-tr-none'
-      }`}>
+        }`}>
         {isUser ? (
           // 用户消息直接显示
-          <div>{message.content}</div>
+          <div>
+            {message.content}
+            {/* 显示附带的图片 */}
+            {message.images && message.images.length > 0 && (
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {message.images.map((img, idx) => (
+                  <img
+                    key={idx}
+                    src={img.thumbnail}
+                    alt="attachment"
+                    className="w-16 h-16 rounded object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => window.open(img.url, '_blank')}
+                    title="点击查看原图"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           // 系统消息使用markdown渲染
           <ReactMarkdown

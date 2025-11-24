@@ -19,7 +19,7 @@
 分析单张图片
 
 ```python
-from image_analyzer import analyze_temp_image
+from tmp_image_repository import analyze_temp_image
 
 result = analyze_temp_image(
     image_path='/path/to/image.png',
@@ -52,7 +52,7 @@ else:
 批量分析多张图片
 
 ```python
-from image_analyzer import batch_analyze_images
+from tmp_image_repository import batch_analyze_images
 
 image_paths = [
     '/path/to/image1.png',
@@ -86,7 +86,7 @@ for i, result in enumerate(results):
 默认的图片分析提示词
 
 ```python
-from image_analyzer import DEFAULT_PROMPT
+from tmp_image_repository import DEFAULT_PROMPT
 
 print(DEFAULT_PROMPT)
 # 输出: "请详细描述这张图片的内容，包括图片中的物体、场景、文字、颜色等信息。"
@@ -174,7 +174,7 @@ print(f"成功: {success_count}/{len(results)}")
 运行测试脚本：
 
 ```bash
-python image_analyzer/test/test_analyzer.py
+python tmp_image_repository/test/test_analyzer.py
 ```
 
 测试内容包括：

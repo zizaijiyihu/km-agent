@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from km_agent import KMAgent
 from pdf_vectorizer import PDFVectorizer
 import file_repository
-from image_analyzer import analyze_temp_image
+from tmp_image_repository import analyze_temp_image
 from app_api import config
 
 

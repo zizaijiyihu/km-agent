@@ -245,6 +245,34 @@ export async function updateDocumentVisibility(filename, owner = 'hu', isPublic)
 }
 
 /**
+ * 上传并分析图片
+ * @param {File} file - 图片文件
+ * @param {string} username - 用户名
+ * @param {string} prompt - 可选的分析提示词
+ * @returns {Promise<Object>} 分析结果
+ */
+export async function analyzeImage(file, username = 'hu', prompt = null) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('username', username)
+  if (prompt) {
+    formData.append('prompt', prompt)
+  }
+
+  const response = await fetch(`${API_BASE_URL}/analyze-image`, {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to analyze image')
+  }
+
+  return response.json()
+}
+
+/**
  * 检查服务健康状态
  * @returns {Promise<Object>} 健康状态
  */

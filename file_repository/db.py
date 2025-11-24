@@ -135,18 +135,18 @@ def get_owner_files(
 
     try:
         if include_public:
-            # 查询所有者的文件 + 所有公开文件
+            # 查询所有者的文件 + 所有公开文件（仅限kms bucket）
             sql = f"""
             SELECT * FROM {TABLE_NAME}
-            WHERE owner = %s OR is_public = 1
+            WHERE (owner = %s OR is_public = 1) AND bucket = 'kms'
             ORDER BY created_at DESC
             """
             cursor.execute(sql, (owner,))
         else:
-            # 只查询所有者的文件
+            # 只查询所有者的文件（仅限kms bucket）
             sql = f"""
             SELECT * FROM {TABLE_NAME}
-            WHERE owner = %s
+            WHERE owner = %s AND bucket = 'kms'
             ORDER BY created_at DESC
             """
             cursor.execute(sql, (owner,))
