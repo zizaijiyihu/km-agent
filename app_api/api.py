@@ -32,6 +32,7 @@ from app_api import config
 # Global instances
 km_agent = None
 vectorizer = None
+km_agent_cache = {}  # Cache KMAgent instances per owner
 
 
 def allowed_file(filename):
@@ -43,6 +44,20 @@ def allowed_image(filename):
     """Check if file is an allowed image type"""
     ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+
+
+def get_or_create_km_agent(owner: str):
+    """
+    Get or create KMAgent instance for specific owner
+    
+    Caches instances to avoid recreating on every request
+    """
+    global km_agent_cache
+    
+    if owner not in km_agent_cache:
+        km_agent_cache[owner] = KMAgent(verbose=False, owner=owner)
+    
+    return km_agent_cache[owner]
 
 
 def init_services():
@@ -78,6 +93,7 @@ def create_app():
         {
             "message": "user question",
             "history": [...]  // optional, conversation history
+            "owner": "username" // optional, defaults to config.DEFAULT_USER
         }
 
         Response: Server-Sent Events (SSE) stream
@@ -97,11 +113,15 @@ def create_app():
 
             user_message = data['message']
             history = data.get('history', None)
+            owner = data.get('owner', config.DEFAULT_USER) # Get owner from request, default to config.DEFAULT_USER
+
+            # Get or create KMAgent instance for the specific owner
+            km_agent_instance = get_or_create_km_agent(owner)
 
             def generate_stream():
                 """Generate SSE stream from agent"""
                 try:
-                    for chunk in km_agent.chat_stream(user_message, history):
+                    for chunk in km_agent_instance.chat_stream(user_message, history):
                         yield f"data: {json.dumps(chunk)}\n\n"
                 except Exception as e:
                     error_chunk = {
@@ -584,7 +604,6 @@ def create_app():
                 "error": str(e)
             }), 500
 
-
     # ==================== Health Check ====================
     @app.route('/api/health', methods=['GET'])
     def health_check():
@@ -598,10 +617,181 @@ def create_app():
         })
 
 
+    # ==================== API Endpoint 8: Create Instruction ====================
+    @app.route('/api/instructions', methods=['POST'])
+    def create_user_instruction():
+        """
+        Create a new custom instruction for user
+        
+        Request JSON:
+        {
+            "owner": "user123",
+            "content": "回答要简洁明了",
+            "priority": 10  // optional, default 0
+        }
+        
+        Response:
+        {
+            "success": true,
+            "instruction_id": 1,
+            "message": "指示创建成功"
+        }
+        """
+        try:
+            from instruction_repository import create_instruction
+            
+            data = request.json
+            owner = data.get('owner')
+            content = data.get('content')
+            priority = data.get('priority', 0)
+            
+            if not owner:
+                return jsonify({"success": False, "error": "owner参数不能为空"}), 400
+            
+            if not content:
+                return jsonify({"success": False, "error": "content参数不能为空"}), 400
+            
+            result = create_instruction(owner, content, priority)
+            result['message'] = "指示创建成功"
+            return jsonify(result)
+            
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ==================== API Endpoint 9: Get Instructions ====================
+    @app.route('/api/instructions', methods=['GET'])
+    def get_user_instructions():
+        """
+        Get user's instructions
+        
+        Query params:
+        - owner: username (required)
+        - include_inactive: true/false (optional, default false)
+        
+        Response:
+        {
+            "success": true,
+            "instructions": [...]
+        }
+        """
+        try:
+            from instruction_repository import get_all_instructions
+            
+            owner = request.args.get('owner')
+            include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
+            
+            if not owner:
+                return jsonify({"success": False, "error": "owner参数不能为空"}), 400
+            
+            instructions = get_all_instructions(owner, include_inactive)
+            return jsonify({
+                "success": True,
+                "instructions": instructions
+            })
+            
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ==================== API Endpoint 10: Update Instruction ====================
+    @app.route('/api/instructions/<int:instruction_id>', methods=['PUT'])
+    def update_user_instruction(instruction_id):
+        """
+        Update an instruction
+        
+        Request JSON:
+        {
+            "owner": "user123",
+            "content": "...",    // optional
+            "is_active": 1,      // optional
+            "priority": 5        // optional
+        }
+        
+        Response:
+        {
+            "success": true,
+            "message": "指示更新成功"
+        }
+        """
+        try:
+            from instruction_repository import update_instruction
+            
+            data = request.json
+            owner = data.get('owner')
+            
+            if not owner:
+                return jsonify({"success": False, "error": "owner参数不能为空"}), 400
+            
+            content = data.get('content')
+            is_active = data.get('is_active')
+            priority = data.get('priority')
+            
+            result = update_instruction(
+                instruction_id=instruction_id,
+                owner=owner,
+                content=content,
+                is_active=is_active,
+                priority=priority
+            )
+            return jsonify(result)
+            
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ==================== API Endpoint 11: Delete Instruction ====================
+    @app.route('/api/instructions/<int:instruction_id>', methods=['DELETE'])
+    def delete_user_instruction(instruction_id):
+        """
+        Delete an instruction
+        
+        Request JSON:
+        {
+            "owner": "user123"
+        }
+        
+        Response:
+        {
+            "success": true,
+            "message": "指示删除成功"
+        }
+        """
+        try:
+            from instruction_repository import delete_instruction
+            
+            data = request.json
+            owner = data.get('owner')
+            
+            if not owner:
+                return jsonify({"success": False, "error": "owner参数不能为空"}), 400
+            
+            result = delete_instruction(instruction_id, owner)
+            return jsonify(result)
+            
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
     return app
 
 
 if __name__ == '__main__':
     app = create_app()
     print(f"Starting App API on {config.HOST}:{config.PORT}")
+    print("API endpoints:")
+    print("  - POST   /api/chat")
+    print("  - GET    /api/documents")
+    print("  - POST   /api/upload")
+    print("  - DELETE /api/documents/<filename>")
+    print("  - PUT    /api/documents/<filename>/visibility")
+    print("  - GET    /api/documents/<filename>/content")
+    print("  - POST   /api/analyze-image")
+    print("  - POST   /api/instructions")
+    print("  - GET    /api/instructions")
+    print("  - PUT    /api/instructions/<int:instruction_id>")
+    print("  - DELETE /api/instructions/<int:instruction_id>")
+    print("  - GET    /api/health")
     app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)

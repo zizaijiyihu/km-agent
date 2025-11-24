@@ -63,19 +63,22 @@ class KMAgent:
 
     def __init__(
         self,
-        verbose: bool = False
+        verbose: bool = False,
+        owner: str = "default"
     ):
         """
         Initialize KM Agent
 
         Args:
             verbose: Whether to print debug information
+            owner: User identifier for loading custom instructions
 
         Note:
             All configuration (OpenAI, embedding, Qdrant) is automatically loaded
             from ks_infrastructure services. No need to pass any parameters.
         """
         self.verbose = verbose
+        self.owner = owner
 
         # LLM client (using ks_infrastructure)
         self.llm_client = ks_openai()
@@ -84,6 +87,12 @@ class KMAgent:
         # Vectorizer for knowledge base operations (using ks_infrastructure)
         # collection_name, vector_size are defaults in PDFVectorizer
         self.vectorizer = PDFVectorizer()
+        
+        # Load user custom instructions
+        self.custom_instructions = self._load_instructions()
+        
+        # Build effective system prompt with custom instructions
+        self.effective_system_prompt = self._build_system_prompt()
 
         # Tool definitions for function calling
         self.tools = [
@@ -143,6 +152,57 @@ class KMAgent:
                 }
             }
         ]
+
+    def _load_instructions(self) -> list:
+        """
+        Load user's custom instructions from database
+        
+        Returns:
+            List of active instructions ordered by priority
+        """
+        try:
+            from instruction_repository import get_active_instructions
+            return get_active_instructions(self.owner)
+        except Exception as e:
+            if self.verbose:
+                print(f"Warning: Failed to load custom instructions: {e}")
+            return []
+    
+    def _build_system_prompt(self) -> str:
+        """
+        Build effective system prompt by combining base prompt with custom instructions
+        
+        Returns:
+            Complete system prompt string
+        """
+        base_prompt = self.SYSTEM_PROMPT
+        
+        if not self.custom_instructions:
+            return base_prompt
+        
+        # Format custom instructions
+        instructions_text = "\n".join([
+            f"{i+1}. {inst['content']}" 
+            for i, inst in enumerate(self.custom_instructions)
+        ])
+        
+        # Append custom instructions to base prompt
+        return f"""{base_prompt}
+
+**用户自定义指示**（请严格遵守以下要求）：
+{instructions_text}
+"""
+    
+    def reload_instructions(self):
+        """
+        Reload custom instructions from database
+        
+        Useful when instructions are updated during agent lifecycle
+        """
+        self.custom_instructions = self._load_instructions()
+        self.effective_system_prompt = self._build_system_prompt()
+        if self.verbose:
+            print(f"Reloaded {len(self.custom_instructions)} custom instructions")
 
     def _search_knowledge(self, query: str, limit: int = 5, mode: str = "content") -> Dict:
         """
@@ -261,7 +321,7 @@ class KMAgent:
 
         # Add system prompt if this is the first message
         if not history:
-            messages = [{"role": "system", "content": self.SYSTEM_PROMPT}]
+            messages = [{"role": "system", "content": self.effective_system_prompt}]
         else:
             messages = history.copy()
 
@@ -362,7 +422,7 @@ class KMAgent:
 
         # Add system prompt if this is the first message
         if not history:
-            messages = [{"role": "system", "content": self.SYSTEM_PROMPT}]
+            messages = [{"role": "system", "content": self.effective_system_prompt}]
         else:
             messages = history.copy()
 
