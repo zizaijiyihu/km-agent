@@ -103,10 +103,10 @@ def test_instruction_repository():
     except Exception as e:
         print(f"✗ Delete failed: {e}")
     
-    # Test 8: Test validation - 200 char limit
-    print("\n8. Testing 200-char limit validation...")
+    # Test 8: Test validation - 400 char limit
+    print("\n8. Testing 400-char limit validation...")
     try:
-        create_instruction(test_owner, "x" * 201, 0)
+        create_instruction(test_owner, "x" * 401, 0)
         print("✗ Should have raised ValueError")
     except ValueError as e:
         print(f"✓ Correctly raised ValueError: {e}")

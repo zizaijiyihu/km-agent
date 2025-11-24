@@ -45,7 +45,7 @@ def create_instruction(owner: str, content: str, priority: int = 0) -> dict:
     
     Args:
         owner: 所有者用户名
-        content: 指示内容（≤200字）
+        content: 指示内容（≤400字符）
         priority: 优先级，数字越大越优先（默认0）
     
     Returns:
@@ -65,8 +65,8 @@ def create_instruction(owner: str, content: str, priority: int = 0) -> dict:
     if not content or not content.strip():
         raise ValueError("content不能为空")
     
-    if len(content) > 200:
-        raise ValueError(f"指示内容超过200字限制（当前{len(content)}字）")
+    if len(content) > 400:
+        raise ValueError(f"指示内容超过400字符限制（当前{len(content)}字符）")
     
     _ensure_table_exists()
     conn = ks_mysql()
@@ -206,7 +206,7 @@ def update_instruction(
     Args:
         instruction_id: 指示ID
         owner: 所有者用户名（用于权限验证）
-        content: 新的指示内容（可选，≤200字）
+        content: 新的指示内容（可选，≤400字符）
         is_active: 是否启用（可选，0或1）
         priority: 优先级（可选）
     
@@ -221,8 +221,8 @@ def update_instruction(
         KsConnectionError: 数据库操作失败
     """
     # 参数验证
-    if content is not None and len(content) > 200:
-        raise ValueError(f"指示内容超过200字限制（当前{len(content)}字）")
+    if content is not None and len(content) > 400:
+        raise ValueError(f"指示内容超过400字符限制（当前{len(content)}字符）")
     
     if is_active is not None and is_active not in (0, 1):
         raise ValueError("is_active必须为0或1")
