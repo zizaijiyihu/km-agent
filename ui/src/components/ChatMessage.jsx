@@ -67,8 +67,8 @@ function ChatMessage({ message }) {
   return (
     <div className={`mb-4 max-w-[80%] ${isUser ? 'ml-auto' : ''}`}>
       <div className={`p-3 rounded-lg ${isUser
-          ? 'bg-light-blue rounded-tl-none'
-          : 'bg-white border border-gray-100 rounded-tr-none'
+        ? 'bg-light-blue rounded-tl-none'
+        : 'bg-white border border-gray-100 rounded-tr-none'
         }`}>
         {isUser ? (
           // 用户消息直接显示
@@ -82,7 +82,7 @@ function ChatMessage({ message }) {
                     key={idx}
                     src={img.thumbnail}
                     alt="attachment"
-                    className="w-16 h-16 rounded object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                    className="max-w-[120px] max-h-[120px] rounded border border-gray-200 object-contain cursor-pointer hover:opacity-80 transition-opacity bg-gray-50"
                     onClick={() => window.open(img.url, '_blank')}
                     title="点击查看原图"
                   />
