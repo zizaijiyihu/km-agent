@@ -10,6 +10,7 @@
 - ✅ **文件下载** - 从 MinIO 获取文档内容
 - ✅ **文件删除** - 删除文档（MinIO + MySQL + Qdrant）
 - ✅ **权限管理** - 修改文档公开/私有状态
+- ✅ **图片分析** - 上传图片到临时存储并使用视觉服务分析
 
 ## 安装依赖
 
@@ -284,6 +285,39 @@ curl "http://localhost:5000/api/documents/document.pdf/content?owner=user123" -o
 
 ---
 
+### 7. 图片上传与分析
+
+**Endpoint**: `POST /api/analyze-image`
+
+**功能**: 上传图片到临时存储并使用视觉服务分析
+
+**Content-Type**: `multipart/form-data`
+
+**Form Data**:
+- `file`: 图片文件（必需，支持 png, jpg, jpeg, gif, bmp, webp）
+- `username`: 用户名（可选，默认 "system"）
+- `prompt`: 分析提示词（可选，使用默认提示词）
+
+**Response**:
+```json
+{
+    "success": true,
+    "image_url": "http://...",
+    "analysis": "图片分析结果"
+}
+```
+
+**示例**:
+```bash
+# 上传并分析图片
+curl -X POST http://localhost:5000/api/analyze-image \
+  -F "file=@image.png" \
+  -F "username=user123" \
+  -F "prompt=请描述这张图片"
+```
+
+---
+
 ### 健康检查
 
 **Endpoint**: `GET /api/health`
@@ -308,23 +342,54 @@ curl http://localhost:5000/api/health
 
 ## 配置
 
-配置文件：`app_api/config.py`
+实际配置文件：`ks_infrastructure/configs/default.py`
 
 ```python
-# 默认用户
-DEFAULT_USER = "hu"
+# MySQL数据库配置
+MYSQL_CONFIG = {
+    "host": "120.92.109.164",
+    "port": 8306,
+    "user": "admin",
+    "password": "rsdyxjh",
+    "database": "yanzhi"
+}
 
-# 上传配置
-ALLOWED_EXTENSIONS = {'pdf'}
-MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
+# MinIO对象存储配置
+MINIO_CONFIG = {
+    "endpoint": "http://120.92.109.164:9000",  # S3 API服务端口
+    "access_key": "admin",
+    "secret_key": "rsdyxjh110!",
+    "region": "us-east-1"
+}
 
-# 服务器配置
-DEBUG = True
-HOST = "0.0.0.0"
-PORT = 5000
+# Qdrant向量数据库配置
+QDRANT_CONFIG = {
+    "url": "http://120.92.109.164:6333",
+    "api_key": "rsdyxjh"
+}
+
+# OpenAI大语言模型配置
+OPENAI_CONFIG = {
+    "api_key": "85c923cc-9dcf-467a-89d5-285d3798014d",
+    "base_url": "https://kspmas.ksyun.com/v1/",
+    "model": "DeepSeek-V3.1-Ksyun"
+}
+
+# Embedding服务配置
+EMBEDDING_CONFIG = {
+    "url": "http://10.69.86.20/v1/embeddings",
+    "api_key": "7c64b222-4988-4e6a-bb26-48594ceda8a9"
+}
+
+# Vision视觉识别服务配置
+VISION_CONFIG = {
+    "api_key": "sk-412a5b410f664d60a29327fdfa28ac6e",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "model": "qwen-vl-max"
+}
 ```
 
-**注意**: 所有服务配置（LLM、Embedding、Qdrant、MinIO、MySQL）统一在 `ks_infrastructure` 模块中管理
+**注意**: 实际的服务配置在 `ks_infrastructure/configs/default.py` 文件中管理，`app_api/config.py` 中的配置主要用于向后兼容和默认值设置。
 
 ## 错误处理
 

@@ -7,9 +7,11 @@
 - 文件上传到 MinIO 对象存储
 - 文件元数据存储到 MySQL 数据库
 - 文件查询和下载
+- 文件删除（MinIO + MySQL）
 - 列出用户所有文件
 - 支持多个 bucket（默认 `kms` 和 `tmp`）
 - 自动创建不存在的 bucket
+- 临时bucket自动设置为公开访问
 - 重复上传自动覆盖
 - 文件公开/私有状态管理
 - 跨用户访问公开文件
@@ -166,6 +168,33 @@ else:
 - `is_public` (int): 公开状态 (0=私有, 1=公开)
 
 **返回：** bool，是否成功更新
+
+### delete_file
+
+删除文件（从 MinIO 和 MySQL 中删除）
+
+```python
+from file_repository import delete_file
+
+# 删除文件
+success = delete_file(
+    owner='user123',
+    filename='example.pdf',
+    bucket='kms'  # 可选，默认 'kms'
+)
+
+if success:
+    print("删除成功")
+else:
+    print("文件不存在")
+```
+
+**参数：**
+- `owner` (str): 文件所有者
+- `filename` (str): 文件名
+- `bucket` (str): bucket 名称，默认 'kms'
+
+**返回：** bool，是否成功删除（MinIO 或 MySQL 至少有一个成功则返回 True）
 
 ## 数据库结构
 

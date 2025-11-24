@@ -235,3 +235,47 @@ def get_file_metadata(file_path: str) -> Optional[dict]:
         raise KsConnectionError(f"查询文件元数据失败: {e}")
     finally:
         cursor.close()
+
+
+def delete_file_metadata(
+    owner: str,
+    filename: str
+) -> bool:
+    """
+    删除文件元数据
+
+    Args:
+        owner: 文件所有者
+        filename: 文件名
+
+    Returns:
+        bool: 是否成功删除
+
+    Raises:
+        KsConnectionError: 删除失败时抛出
+    """
+    _ensure_table_exists()
+    conn = ks_mysql()
+    cursor = conn.cursor()
+
+    try:
+        file_path = f"{owner}/{filename}"
+        sql = f"""
+        DELETE FROM {TABLE_NAME}
+        WHERE file_path = %s AND owner = %s
+        """
+        cursor.execute(sql, (file_path, owner))
+        conn.commit()
+
+        affected_rows = cursor.rowcount
+        if affected_rows > 0:
+            logger.info(f"Deleted file metadata: {file_path}")
+            return True
+        else:
+            logger.warning(f"File metadata not found: {file_path}")
+            return False
+    except Exception as e:
+        conn.rollback()
+        raise KsConnectionError(f"删除文件元数据失败: {e}")
+    finally:
+        cursor.close()

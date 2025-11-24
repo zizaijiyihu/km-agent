@@ -35,11 +35,7 @@ env/
 .DS_Store
 Thumbs.db
 
-# PDF files (uploaded documents)
-*.pdf
-
 # Test files and temporary documentation
-test_*.py
 service_demo.py
 check_qdrant.py
 *_GUIDE.md

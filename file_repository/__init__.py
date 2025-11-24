@@ -8,7 +8,8 @@ from .repository import (
     get_file,
     list_user_files,
     get_owner_file_list,
-    set_file_public
+    set_file_public,
+    delete_file
 )
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     'get_file',
     'list_user_files',
     'get_owner_file_list',
-    'set_file_public'
+    'set_file_public',
+    'delete_file'
 ]

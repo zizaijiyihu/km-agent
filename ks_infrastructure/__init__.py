@@ -11,8 +11,10 @@ from .services import (
     ks_openai,
     ks_embedding,
     ks_vision,
+    ks_user_info,
     KsEmbeddingService,
     KsVisionService,
+    KsUserInfoService,
     clear_instances,
     KsInfrastructureError,
     KsConnectionError,
@@ -47,9 +49,11 @@ __all__ = [
     'ks_openai',
     'ks_embedding',
     'ks_vision',
+    'ks_user_info',
     # 服务类
     'KsEmbeddingService',
     'KsVisionService',
+    'KsUserInfoService',
     # 初始化函数
     'init_infrastructure',
     # 异常类

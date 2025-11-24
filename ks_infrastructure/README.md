@@ -18,6 +18,7 @@
   - OpenAI 大语言模型
   - Embedding 文本嵌入服务
   - Vision 图像识别服务
+  - UserInfo 用户信息查询服务
 
 ## 目录结构
 
@@ -39,11 +40,13 @@ ks_infrastructure/
 │   ├── qdrant_service.py         # Qdrant 服务
 │   ├── openai_service.py         # OpenAI 服务
 │   ├── embedding_service.py      # Embedding 服务
-│   └── vision_service.py         # Vision 服务
+│   ├── vision_service.py         # Vision 服务
+│   └── user_info_service.py      # UserInfo 用户信息服务
 ├── examples/
 │   └── basic_usage.py            # 使用示例
 └── tests/
-    └── test_all_services.py      # 测试脚本
+    ├── test_all_services.py      # 测试脚本
+    └── test_user_info_service.py # UserInfo服务测试
 ```
 
 ## 安装依赖
@@ -63,7 +66,8 @@ from ks_infrastructure import (
     ks_qdrant,
     ks_openai,
     ks_embedding,
-    ks_vision
+    ks_vision,
+    ks_user_info
 )
 
 # 获取服务实例
@@ -73,6 +77,7 @@ qdrant_client = ks_qdrant()
 openai_client = ks_openai()
 embedding_service = ks_embedding()  # 现在返回封装好的服务对象
 vision_service = ks_vision()
+user_info_service = ks_user_info()
 ```
 
 ### 2. 使用自定义配置
@@ -247,6 +252,28 @@ result = vision_service.analyze_image(
 print(result)
 ```
 
+### UserInfo 用户信息查询服务
+
+```python
+# 获取UserInfo服务
+user_info_service = ks_user_info()
+
+# 根据用户名查询用户信息
+user_info = user_info_service.get_by_username("zhangsan")
+if user_info:
+    print(f"姓名: {user_info.get('name')}")
+    print(f"邮箱: {user_info.get('email')}")
+    print(f"部门: {user_info.get('department')}")
+else:
+    print("用户不存在")
+
+# 根据员工ID查询用户信息
+user_info = user_info_service.get_by_employee_id("E12345")
+if user_info:
+    print(f"用户名: {user_info.get('username')}")
+    print(f"姓名: {user_info.get('name')}")
+```
+
 ## 服务说明
 
 ### MySQL 数据库服务
@@ -313,6 +340,22 @@ result = vision_service.analyze_image(
     "png",
     "请用中文详细描述这张图片"
 )
+```
+
+### UserInfo 用户信息服务
+
+```python
+# 使用默认配置
+user_info_service = ks_user_info()
+
+# 或者自定义配置
+user_info_service = ks_user_info(
+    base_url='http://your-api-server/api/hr/employee',
+    api_token='your-api-token'
+)
+
+# 查询用户信息
+user = user_info_service.get_by_username("zhangsan")
 ```
 
 ## 异常处理

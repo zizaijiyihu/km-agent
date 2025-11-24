@@ -4,21 +4,65 @@
 """
 
 import logging
+import json
 from typing import Optional, BinaryIO
 from botocore.exceptions import ClientError
 
 from ks_infrastructure.services.minio_service import ks_minio
 from ks_infrastructure.services.exceptions import KsConnectionError
-from .db import save_file_metadata, get_owner_files as db_get_owner_files, set_file_public_status as db_set_file_public_status
+from .db import (
+    save_file_metadata,
+    get_owner_files as db_get_owner_files,
+    set_file_public_status as db_set_file_public_status,
+    delete_file_metadata as db_delete_file_metadata
+)
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_BUCKET = "kms"
 
+# 用于跟踪已设置公开策略的桶
+_public_buckets_configured = set()
+
+
+def _set_bucket_public(client, bucket_name: str) -> None:
+    """
+    设置桶为公开访问（只读）
+
+    Args:
+        client: MinIO客户端
+        bucket_name: 桶名称
+    """
+    try:
+        # 设置桶策略为公开可读
+        bucket_policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"AWS": "*"},
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{bucket_name}/*"]
+                }
+            ]
+        }
+
+        policy_json = json.dumps(bucket_policy)
+        client.put_bucket_policy(Bucket=bucket_name, Policy=policy_json)
+        logger.info(f"已设置桶 {bucket_name} 为公开访问")
+
+    except Exception as e:
+        # 如果设置失败，记录警告但不中断流程
+        logger.warning(
+            f"设置桶 {bucket_name} 公开访问策略失败: {e}\n"
+            f"请手动在MinIO控制台设置 {bucket_name} 桶的访问策略为 public"
+        )
+
 
 def _ensure_bucket_exists(client, bucket_name: str) -> None:
     """
     确保bucket存在，不存在则创建
+    如果是 tmp 桶，会自动设置为公开访问
 
     Args:
         client: MinIO客户端
@@ -42,6 +86,12 @@ def _ensure_bucket_exists(client, bucket_name: str) -> None:
                     raise KsConnectionError(f"创建bucket失败: {create_error}")
             except Exception as create_error:
                 raise KsConnectionError(f"创建bucket失败: {create_error}")
+
+        # 如果是 tmp 桶，设置为公开访问
+        if bucket_name == 'tmp' and bucket_name not in _public_buckets_configured:
+            _set_bucket_public(client, bucket_name)
+            _public_buckets_configured.add(bucket_name)
+
     except KsConnectionError:
         raise
     except ClientError as e:
@@ -234,3 +284,55 @@ def set_file_public(
         raise ValueError("is_public 必须是 0 或 1")
 
     return db_set_file_public_status(owner, filename, is_public)
+
+
+def delete_file(
+    owner: str,
+    filename: str,
+    bucket: str = DEFAULT_BUCKET
+) -> bool:
+    """
+    删除文件（MinIO + MySQL元数据）
+
+    Args:
+        owner: 文件所有者
+        filename: 文件名
+        bucket: bucket名称，默认为'kms'
+
+    Returns:
+        bool: 是否成功删除
+
+    Raises:
+        KsConnectionError: 删除失败时抛出
+    """
+    client = ks_minio()
+    object_key = f"{owner}/{filename}"
+
+    minio_deleted = False
+    db_deleted = False
+
+    try:
+        # 1. 从MinIO删除文件
+        try:
+            client.delete_object(Bucket=bucket, Key=object_key)
+            logger.info(f"Deleted file from MinIO: {bucket}/{object_key}")
+            minio_deleted = True
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code in ('404', 'NoSuchKey'):
+                logger.warning(f"File not found in MinIO: {bucket}/{object_key}")
+            else:
+                raise KsConnectionError(f"MinIO删除文件失败: {e}")
+        except Exception as e:
+            raise KsConnectionError(f"MinIO删除文件失败: {e}")
+
+        # 2. 从MySQL删除元数据
+        db_deleted = db_delete_file_metadata(owner, filename)
+
+        # 如果至少有一个成功，就返回True
+        return minio_deleted or db_deleted
+
+    except KsConnectionError:
+        raise
+    except Exception as e:
+        raise KsConnectionError(f"删除文件失败: {e}")

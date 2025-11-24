@@ -46,3 +46,9 @@ VISION_CONFIG = {
     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "model": "qwen-vl-max"
 }
+
+# HR API用户信息服务配置
+HR_API_CONFIG = {
+    "base_url": "http://10.69.87.93:8001/api/hr/employee",
+    "api_token": "demo-api-token-please-change-this"
+}

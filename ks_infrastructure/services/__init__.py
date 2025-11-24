@@ -10,6 +10,7 @@ from .qdrant_service import ks_qdrant
 from .openai_service import ks_openai
 from .embedding_service import ks_embedding, KsEmbeddingService
 from .vision_service import ks_vision, KsVisionService
+from .user_info_service import ks_user_info, KsUserInfoService
 from .base import clear_instances
 from .exceptions import (
     KsInfrastructureError,
@@ -26,9 +27,11 @@ __all__ = [
     'ks_openai',
     'ks_embedding',
     'ks_vision',
+    'ks_user_info',
     # 服务类
     'KsEmbeddingService',
     'KsVisionService',
+    'KsUserInfoService',
     # 工具函数
     'clear_instances',
     # 异常类

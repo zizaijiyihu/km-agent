@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from km_agent import KMAgent
 from pdf_vectorizer import PDFVectorizer
 import file_repository
+from image_analyzer import analyze_temp_image
 from app_api import config
 
 
@@ -36,6 +37,12 @@ vectorizer = None
 def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in config.ALLOWED_EXTENSIONS
+
+
+def allowed_image(filename):
+    """Check if file is an allowed image type"""
+    ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
 def init_services():
@@ -492,6 +499,84 @@ def create_app():
                     "success": False,
                     "error": "File not found"
                 }), 404
+
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
+
+    # ==================== API Endpoint 7: Upload and Analyze Image ====================
+    @app.route('/api/analyze-image', methods=['POST'])
+    def analyze_image():
+        """
+        Upload image to tmp bucket and analyze with vision service
+
+        Form data:
+        - file: Image file (png, jpg, jpeg, gif, bmp, webp)
+        - username: username (default: "system")
+        - prompt: Analysis prompt (optional, uses default if not provided)
+
+        Response:
+        {
+            "success": true,
+            "image_url": "http://...",
+            "analysis": "图片分析结果"
+        }
+        """
+        # Check if file is present
+        if 'file' not in request.files:
+            return jsonify({
+                "success": False,
+                "error": "No file provided"
+            }), 400
+
+        file = request.files['file']
+
+        if file.filename == '':
+            return jsonify({
+                "success": False,
+                "error": "No file selected"
+            }), 400
+
+        if not allowed_image(file.filename):
+            return jsonify({
+                "success": False,
+                "error": "Invalid file type. Allowed types: png, jpg, jpeg, gif, bmp, webp"
+            }), 400
+
+        # Get parameters
+        username = request.form.get('username', 'system')
+        prompt = request.form.get('prompt', None)
+
+        try:
+            # Save uploaded file to temporary location
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp_file:
+                file.save(tmp_file.name)
+                tmp_filepath = tmp_file.name
+
+            try:
+                # Analyze image
+                kwargs = {
+                    'image_path': tmp_filepath,
+                    'username': username,
+                    'custom_filename': file.filename
+                }
+                if prompt:
+                    kwargs['prompt'] = prompt
+
+                result = analyze_temp_image(**kwargs)
+
+                return jsonify(result)
+
+            finally:
+                # Clean up temporary file
+                if os.path.exists(tmp_filepath):
+                    try:
+                        os.remove(tmp_filepath)
+                    except Exception as e:
+                        print(f"Warning: Failed to delete temp file {tmp_filepath}: {e}")
 
         except Exception as e:
             return jsonify({
