@@ -230,8 +230,8 @@ function ChatView() {
       {/* 输入容器 */}
       <div
         className={`${hasMessages
-            ? 'h-[100px] justify-center'
-            : 'flex-1 items-center justify-center'
+          ? 'h-[100px] justify-center'
+          : 'flex-1 items-center justify-center'
           } flex flex-col bg-white w-full transition-all duration-1200 ease-out`}
       >
         {/* 问候语 */}
@@ -246,14 +246,15 @@ function ChatView() {
 
         {/* 输入区 */}
         <div className="w-full max-w-[760px] p-4 mx-auto">
-          <div className="relative">
-            {/* 图片预览区 */}
+          {/* 输入容器 - flex布局，图片在左侧 */}
+          <div className="flex items-start gap-3 relative border border-gray-300 rounded-2xl p-4 shadow-md bg-white focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary transition-all">
+            {/* 图片预览区 - 左侧 */}
             {uploadedImages.length > 0 && (
-              <div className="flex gap-2 mb-2 flex-wrap">
+              <div className="flex gap-2 flex-shrink-0">
                 {uploadedImages.map(img => (
                   <div
                     key={img.id}
-                    className="relative w-20 h-20 rounded-lg overflow-hidden border-2 border-gray-300"
+                    className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-gray-200"
                   >
                     {/* 缩略图 */}
                     <img
@@ -265,68 +266,72 @@ function ChatView() {
                     {/* 状态覆盖层 */}
                     {img.status === 'uploading' && analyzingImage === img.id && (
                       <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
-                        <i className="fa fa-spinner fa-spin text-white text-xl mb-1"></i>
+                        <i className="fa fa-spinner fa-spin text-white text-sm mb-1"></i>
                         <span className="text-white text-xs">{analyzeProgress}%</span>
                       </div>
                     )}
 
                     {img.status === 'done' && (
-                      <div className="absolute top-1 right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                        <i className="fa fa-check text-white text-xs"></i>
+                      <div className="absolute top-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                        <i className="fa fa-check text-white text-[10px]"></i>
                       </div>
                     )}
 
                     {img.status === 'error' && (
                       <div className="absolute inset-0 bg-red-500/80 flex items-center justify-center">
-                        <i className="fa fa-exclamation text-white"></i>
+                        <i className="fa fa-exclamation text-white text-sm"></i>
                       </div>
                     )}
 
                     {/* 删除按钮 */}
                     <button
                       onClick={() => removeImage(img.id)}
-                      className="absolute top-1 left-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center hover:bg-black/80 transition-colors"
+                      className="absolute top-0.5 left-0.5 w-4 h-4 bg-black/60 rounded-full flex items-center justify-center hover:bg-black/80 transition-colors"
                       title="删除"
                     >
-                      <i className="fa fa-times text-white text-xs"></i>
+                      <i className="fa fa-times text-white text-[10px]"></i>
                     </button>
                   </div>
                 ))}
               </div>
             )}
 
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => {
-                setInputValue(e.target.value)
-                adjustInputHeight(e)
-              }}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              className="w-full p-4 pr-16 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none resize-none transition-all shadow-md"
-              placeholder="发消息或粘贴图片，输入/选择技能"
-              rows="2"
-              disabled={isLoading}
-            />
+            {/* 输入框容器 - 占据剩余空间 */}
+            <div className="flex-1 relative">
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => {
+                  setInputValue(e.target.value)
+                  adjustInputHeight(e)
+                }}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                className="w-full pr-20 outline-none resize-none bg-transparent"
+                placeholder="发消息或粘贴图片，输入/选择技能"
+                rows="2"
+                disabled={isLoading}
+                style={{ minHeight: '48px' }}
+              />
 
-            {/* 工具按钮组 */}
-            <div className="absolute right-3 bottom-3 flex space-x-2">
-              <button
-                onClick={toggleKnowledgeSidebar}
-                className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full transition-colors"
-                title="知识库"
-              >
-                <i className="fa fa-book" aria-hidden="true"></i>
-              </button>
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isLoading}
-                className="w-8 h-8 flex items-center justify-center text-white bg-primary hover:bg-primary/90 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="发送"
-              >
-                <i className="fa fa-paper-plane-o" aria-hidden="true"></i>
-              </button>
+              {/* 工具按钮组 - 绝对定位在右下角 */}
+              <div className="absolute right-0 bottom-0 flex space-x-2">
+                <button
+                  onClick={toggleKnowledgeSidebar}
+                  className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full transition-colors"
+                  title="知识库"
+                >
+                  <i className="fa fa-book" aria-hidden="true"></i>
+                </button>
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!inputValue.trim() || isLoading}
+                  className="w-8 h-8 flex items-center justify-center text-white bg-primary hover:bg-primary/90 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="发送"
+                >
+                  <i className="fa fa-paper-plane-o" aria-hidden="true"></i>
+                </button>
+              </div>
             </div>
           </div>
         </div>
