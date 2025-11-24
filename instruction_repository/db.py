@@ -193,6 +193,59 @@ def get_all_instructions(owner: str, include_inactive: bool = False) -> list:
         cursor.close()
 
 
+def get_instruction_by_id(instruction_id: int, owner: str) -> dict:
+    """
+    获取单个指示的详情
+    
+    Args:
+        instruction_id: 指示ID
+        owner: 所有者用户名（用于权限验证）
+    
+    Returns:
+        {
+            "id": 1,
+            "content": "回答要简洁明了",
+            "is_active": 1,
+            "priority": 10,
+            "created_at": "2025-11-24 18:00:00",
+            "updated_at": "2025-11-24 18:00:00"
+        }
+    
+    Raises:
+        ValueError: 指示不存在或无权限查看
+        KsConnectionError: 数据库操作失败
+    """
+    _ensure_table_exists()
+    conn = ks_mysql()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        sql = f"""
+        SELECT id, content, is_active, priority, created_at, updated_at
+        FROM {TABLE_NAME}
+        WHERE id = %s AND owner = %s
+        """
+        cursor.execute(sql, (instruction_id, owner))
+        result = cursor.fetchone()
+        
+        if not result:
+            raise ValueError("指示不存在或无权限查看")
+        
+        # 格式化时间
+        if result.get('created_at'):
+            result['created_at'] = result['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+        if result.get('updated_at'):
+            result['updated_at'] = result['updated_at'].strftime('%Y-%m-%d %H:%M:%S')
+        
+        return result
+    except ValueError:
+        raise
+    except Exception as e:
+        raise KsConnectionError(f"查询指示失败: {e}")
+    finally:
+        cursor.close()
+
+
 def update_instruction(
     instruction_id: int,
     owner: str,

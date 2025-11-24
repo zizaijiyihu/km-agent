@@ -694,6 +694,47 @@ def create_app():
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # ==================== API Endpoint 9.5: Get Instruction Detail ====================
+    @app.route('/api/instructions/<int:instruction_id>', methods=['GET'])
+    def get_instruction_detail(instruction_id):
+        """
+        Get single instruction detail
+        
+        Query params:
+        - owner: username (required)
+        
+        Response:
+        {
+            "success": true,
+            "instruction": {
+                "id": 1,
+                "content": "...",
+                "is_active": 1,
+                "priority": 10,
+                "created_at": "...",
+                "updated_at": "..."
+            }
+        }
+        """
+        try:
+            from instruction_repository import get_instruction_by_id
+            
+            owner = request.args.get('owner')
+            
+            if not owner:
+                return jsonify({"success": False, "error": "owner参数不能为空"}), 400
+            
+            instruction = get_instruction_by_id(instruction_id, owner)
+            return jsonify({
+                "success": True,
+                "instruction": instruction
+            })
+            
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 404
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
     # ==================== API Endpoint 10: Update Instruction ====================
     @app.route('/api/instructions/<int:instruction_id>', methods=['PUT'])
     def update_user_instruction(instruction_id):
@@ -791,6 +832,7 @@ if __name__ == '__main__':
     print("  - POST   /api/analyze-image")
     print("  - POST   /api/instructions")
     print("  - GET    /api/instructions")
+    print("  - GET    /api/instructions/<int:instruction_id>")
     print("  - PUT    /api/instructions/<int:instruction_id>")
     print("  - DELETE /api/instructions/<int:instruction_id>")
     print("  - GET    /api/health")

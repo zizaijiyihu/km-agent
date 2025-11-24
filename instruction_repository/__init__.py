@@ -8,6 +8,7 @@ from .db import (
     create_instruction,
     get_active_instructions,
     get_all_instructions,
+    get_instruction_by_id,
     update_instruction,
     delete_instruction
 )
@@ -16,6 +17,7 @@ __all__ = [
     'create_instruction',
     'get_active_instructions',
     'get_all_instructions',
+    'get_instruction_by_id',
     'update_instruction',
     'delete_instruction'
 ]
