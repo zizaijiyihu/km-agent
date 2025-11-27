@@ -212,6 +212,9 @@ class PDFVectorizer:
             verbose: Whether to print progress
         """
         try:
+            # Ensure collection exists before attempting deletion
+            self._ensure_collection()
+            
             # Use scroll to get all points with matching filename and owner
             scroll_result = self.qdrant_client.scroll(
                 collection_name=self.collection_name,
@@ -247,30 +250,37 @@ class PDFVectorizer:
             if verbose:
                 print(f"⚠ Warning: Failed to delete existing pages: {e}")
 
-    def vectorize_pdf(self, pdf_path: str, owner: str, display_filename: str = None, verbose: bool = True) -> Dict:
+    def vectorize_pdf(self, pdf_path: str, owner: str, display_filename: str = None, verbose: bool = True, progress_instance: VectorizationProgress = None) -> Dict:
         """
         Vectorize entire PDF and store in Qdrant.
         Uses dual-vector strategy: summary_vector + content_vector
-        Updates self.progress object during processing for real-time tracking.
+        Updates progress object during processing for real-time tracking.
 
         Args:
             pdf_path: Path to PDF file
             owner: Owner of the document
             display_filename: Optional display filename to use in database (useful for preserving original names with special characters)
             verbose: Whether to print progress
+            progress_instance: Optional dedicated progress instance for this operation. If None, uses self.progress
 
         Returns:
             Dictionary with processing results
         """
+        # Use provided progress instance or fall back to self.progress
+        progress = progress_instance if progress_instance is not None else self.progress
+        
         # Reset progress
-        self.progress.reset()
+        progress.reset()
+
+        # Ensure collection exists (in case Qdrant was restarted or collection was deleted)
+        self._ensure_collection()
 
         # Use display_filename if provided, otherwise extract from path
         filename = display_filename if display_filename else os.path.basename(pdf_path)
 
         try:
             # Update progress: Initialization
-            self.progress.update(
+            progress.update(
                 stage="init",
                 message=f"开始处理文档: {filename}",
                 current_step="初始化",
@@ -285,7 +295,7 @@ class PDFVectorizer:
                 print(f"{'='*60}\n")
 
             # Step 0: Delete existing document with same filename and owner
-            self.progress.update(
+            progress.update(
                 message="检查并删除已存在的文档",
                 current_step="去重处理",
                 progress_percent=5
@@ -296,20 +306,42 @@ class PDFVectorizer:
             self.delete_document(filename, owner, verbose)
 
             # Step 1: Parse PDF to JSON
-            self.progress.update(
+            progress.update(
                 stage="parsing",
                 message="正在解析PDF文档...",
                 current_step="PDF解析",
-                progress_percent=10
+                progress_percent=5
             )
 
             if verbose:
                 print("\nStep 1: Parsing PDF...")
-            result = self.pdf_converter.convert(pdf_path, analyze_images=True, verbose=False)
+
+            def parsing_callback(current, total, msg):
+                # Map parsing progress to 5-15% range
+                percent = 5 + (current / total) * 10
+                progress.update(
+                    stage="parsing",
+                    total_pages=total,  # Update top-level total_pages
+                    current_page=current,  # Update top-level current_page
+                    message="正在解析PDF文档",  # Simplified message
+                    current_step=f"解析第 {current}/{total} 页",
+                    progress_percent=percent,
+                    data={"parsed_pages": current, "total_pages": total}
+                )
+                if verbose:
+                    print(f"  - Parsing: {current}/{total}")
+
+            result = self.pdf_converter.convert(
+                pdf_path, 
+                analyze_images=True, 
+                verbose=verbose,
+                progress_callback=parsing_callback
+            )
 
             total_pages = result['total_pages']
-            self.progress.update(
+            progress.update(
                 total_pages=total_pages,
+                current_page=total_pages,  # Parsing completed, set to total
                 message=f"PDF解析完成，共 {total_pages} 页",
                 progress_percent=15
             )
@@ -318,7 +350,7 @@ class PDFVectorizer:
                 print(f"✓ Parsed {total_pages} pages\n")
 
             # Step 2-5: Process each page
-            self.progress.update(stage="processing")
+            progress.update(stage="processing")
             points = []
 
             # Get the maximum point_id from existing data to avoid ID conflicts
@@ -357,9 +389,9 @@ class PDFVectorizer:
                 page_progress = 15 + (page_number / total_pages) * 70
 
                 # Update progress: Processing page
-                self.progress.update(
+                progress.update(
                     current_page=page_number,
-                    message=f"正在处理第 {page_number}/{total_pages} 页",
+                    message="生成页面摘要",
                     current_step="生成摘要",
                     progress_percent=page_progress,
                     data={"page_number": page_number}
@@ -374,20 +406,20 @@ class PDFVectorizer:
                 summary = self._generate_summary(page_content, page_number)
 
                 # Step 3: Get embedding vectors for BOTH summary and content
-                self.progress.update(
+                progress.update(
                     current_step="摘要向量化",
                     progress_percent=page_progress + (70 / total_pages * 0.3),
-                    message=f"第 {page_number} 页：摘要向量化"
+                    message="摘要向量化"
                 )
 
                 if verbose:
                     print(f"  - Generating summary vector...")
                 summary_embedding = self._get_embedding(summary)
 
-                self.progress.update(
+                progress.update(
                     current_step="内容向量化",
                     progress_percent=page_progress + (70 / total_pages * 0.6),
-                    message=f"第 {page_number} 页：内容向量化"
+                    message="内容向量化"
                 )
 
                 if verbose:
@@ -412,10 +444,10 @@ class PDFVectorizer:
                 points.append(point)
                 point_id += 1
 
-                self.progress.update(
-                    current_step="页面完成",
+                progress.update(
+                    current_step="页面处理完成",
                     progress_percent=page_progress + (70 / total_pages),
-                    message=f"第 {page_number} 页处理完成",
+                    message="页面处理完成",
                     data={
                         "page_number": page_number,
                         "summary_length": len(summary),
@@ -427,7 +459,7 @@ class PDFVectorizer:
                     print(f"  ✓ Page {page_number} processed (summary: {len(summary)} chars, content: {len(page_content)} chars)\n")
 
             # Step 5: Store in Qdrant
-            self.progress.update(
+            progress.update(
                 stage="storing",
                 current_page=total_pages,
                 message=f"正在存储 {len(points)} 个向量到数据库...",
@@ -453,7 +485,7 @@ class PDFVectorizer:
                 "collection": self.collection_name
             }
 
-            self.progress.update(
+            progress.update(
                 stage="completed",
                 message=f"处理完成！成功存储 {len(points)} 页",
                 current_step="完成",
@@ -476,7 +508,7 @@ class PDFVectorizer:
                 print(f"{'='*60}\n")
             
             # 更新进度状态为错误
-            self.progress.update(
+            progress.update(
                 stage="error",
                 message=error_msg,
                 error=str(e),

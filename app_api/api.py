@@ -15,6 +15,7 @@ import time
 import json
 import threading
 import tempfile
+import logging
 from io import BytesIO
 from flask import Flask, request, jsonify, Response, stream_with_context, send_file
 from werkzeug.utils import secure_filename
@@ -260,7 +261,13 @@ def create_app():
 
         def generate_progress():
             """Generate SSE progress updates"""
+            # Import VectorizationProgress for per-request progress tracking
+            from pdf_vectorizer.vectorizer import VectorizationProgress
+            
             tmp_filepath = None
+            # Create a dedicated progress instance for this upload request
+            upload_progress = VectorizationProgress()
+            
             try:
                 # 1. Upload to MinIO + save metadata to MySQL
                 file.seek(0)
@@ -288,32 +295,52 @@ def create_app():
                     tmp_file.write(content)
                     tmp_filepath = tmp_file.name
 
-                # 3. Vectorize using temporary file
+                # 3. Define vectorize function to run in thread
                 def vectorize():
                     try:
+                        logging.info(f"Starting vectorization for {filename}")
                         vectorizer.vectorize_pdf(
                             tmp_filepath,
                             owner=owner,
                             display_filename=filename,
-                            verbose=False
+                            verbose=False,
+                            progress_instance=upload_progress  # Pass dedicated progress instance
+                        )
+                        logging.info(f"Vectorization completed for {filename}")
+                    except Exception as e:
+                        import traceback
+                        error_details = traceback.format_exc()
+                        logging.error(f"Vectorization failed for {filename}: {e}")
+                        logging.error(f"Traceback:\n{error_details}")
+                        
+                        # Update progress with error
+                        error_message = f"向量化失败: {str(e)}"
+                        upload_progress.update(
+                            stage="error",
+                            error=error_message,
+                            message=error_message
                         )
                     finally:
                         # Clean up temporary file
                         if tmp_filepath and os.path.exists(tmp_filepath):
                             try:
                                 os.remove(tmp_filepath)
+                                logging.info(f"Cleaned up temp file: {tmp_filepath}")
                             except Exception as e:
-                                print(f"Warning: Failed to delete temp file {tmp_filepath}: {e}")
+                                logging.warning(f"Failed to delete temp file {tmp_filepath}: {e}")
 
+
+                # 4. Start vectorization in background thread
                 thread = threading.Thread(target=vectorize)
                 thread.start()
 
                 # 4. Poll progress and send SSE updates
                 last_page = -1
+                last_step = ""
                 timeout = 300  # 5 minutes maximum
                 start_time = time.time()
 
-                while not vectorizer.progress.is_completed and not vectorizer.progress.is_error:
+                while not upload_progress.is_completed and not upload_progress.is_error:
                     # Check timeout
                     if time.time() - start_time > timeout:
                         error_msg = {
@@ -327,7 +354,7 @@ def create_app():
                     # Check if thread is still alive
                     if not thread.is_alive():
                         # Thread died without setting completion/error status
-                        if not vectorizer.progress.is_completed and not vectorizer.progress.is_error:
+                        if not upload_progress.is_completed and not upload_progress.is_error:
                             error_msg = {
                                 "stage": "error",
                                 "error": "处理过程异常终止，请查看服务器日志",
@@ -336,13 +363,15 @@ def create_app():
                             yield f"data: {json.dumps(error_msg)}\n\n"
                             break
 
-                    progress_data = vectorizer.progress.get()
+                    progress_data = upload_progress.get()
                     current_page = progress_data.get('current_page', 0)
+                    current_step = progress_data.get('current_step', '')
 
-                    # Send update when page changes
-                    if current_page != last_page:
+                    # Send update when page changes OR step changes (to show all stages)
+                    if current_page != last_page or current_step != last_step:
                         yield f"data: {json.dumps(progress_data)}\n\n"
                         last_page = current_page
+                        last_step = current_step
 
                     time.sleep(0.3)
 
@@ -350,11 +379,11 @@ def create_app():
                 thread.join(timeout=5)
 
                 # 5. Send final result
-                if vectorizer.progress.is_completed:
-                    final_data = vectorizer.progress.get()
+                if upload_progress.is_completed:
+                    final_data = upload_progress.get()
                     yield f"data: {json.dumps(final_data)}\n\n"
-                elif vectorizer.progress.is_error:
-                    error_data = vectorizer.progress.get()
+                elif upload_progress.is_error:
+                    error_data = upload_progress.get()
                     yield f"data: {json.dumps(error_data)}\n\n"
 
             except Exception as e:
@@ -395,29 +424,39 @@ def create_app():
             "message": "Document deleted successfully"
         }
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
             owner = get_current_user()
             
-            # Debug logging
-            print(f"\n[DEBUG] Delete document request:", flush=True)
-            print(f"  - Filename (raw): {repr(filename)}", flush=True)
-            print(f"  - Filename (str): {filename}", flush=True)
-            print(f"  - Owner: {owner}", flush=True)
-            print(f"  - Filename type: {type(filename)}", flush=True)
-            print(f"  - Filename bytes: {filename.encode('utf-8')}", flush=True)
+            # Debug logging (safe from BrokenPipeError)
+            try:
+                logger.info(f"Delete document request - Filename: {filename}, Owner: {owner}")
+            except:
+                pass
 
             # 1. Delete from vector database (Qdrant)
-            print(f"[DEBUG] Deleting from Qdrant...", flush=True)
-            vectorizer.delete_document(filename, owner, verbose=True)
+            try:
+                logger.info(f"Deleting from Qdrant: {filename}")
+            except:
+                pass
+            vectorizer.delete_document(filename, owner, verbose=False)
 
             # 2. Delete file and metadata (MinIO + MySQL)
-            print(f"[DEBUG] Deleting from MinIO and MySQL...", flush=True)
+            try:
+                logger.info(f"Deleting from MinIO and MySQL: {filename}")
+            except:
+                pass
             result = file_repository.delete_file(
                 owner=owner,
                 filename=filename,
                 bucket='kms'
             )
-            print(f"[DEBUG] Delete result: {result}", flush=True)
+            try:
+                logger.info(f"Delete result: {result}")
+            except:
+                pass
 
             return jsonify({
                 "success": True,
@@ -427,9 +466,11 @@ def create_app():
             })
 
         except Exception as e:
-            print(f"[DEBUG] Delete error: {e}", flush=True)
-            import traceback
-            traceback.print_exc()
+            # Safe error logging that won't raise BrokenPipeError
+            try:
+                logger.error(f"Delete error: {e}", exc_info=True)
+            except:
+                pass
             return jsonify({
                 "success": False,
                 "error": str(e)

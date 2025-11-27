@@ -59,15 +59,18 @@ function KnowledgeSidebar() {
       filename: file.name,
       progress: 0,
       stage: 'init',
-      message: '开始处理...'
+      message: '开始处理...',
+      currentStep: ''
     })
 
     try {
       const result = await uploadPDF(file, 0, (progressData) => {
+        console.log('[DEBUG] Component Progress Update:', progressData)
         setUploadProgress({
           progress: progressData.progress_percent || 0,
           stage: progressData.stage || '',
           message: progressData.message || '',
+          currentStep: progressData.current_step || '',  // Capture current_step
           currentPage: progressData.current_page || 0,
           totalPages: progressData.total_pages || 0
         })
@@ -131,15 +134,23 @@ function KnowledgeSidebar() {
           {/* 上传进度显示 */}
           {uploadProgress.isUploading && (
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">{uploadProgress.filename}</span>
-                <span className="text-xs text-gray-500">{uploadProgress.stage}</span>
+              <div className="mb-3">
+                <span className="text-sm font-medium text-gray-700">
+                  {uploadProgress.filename}
+                </span>
               </div>
+
+              {/* 显示详细消息和页码 */}
               <div className="text-sm text-primary mb-2">
-                {uploadProgress.totalPages > 0
-                  ? `共${uploadProgress.totalPages}页，第${uploadProgress.currentPage}页解析中`
-                  : uploadProgress.message}
+                {uploadProgress.message}
+                {uploadProgress.totalPages > 0 && uploadProgress.currentPage > 0 && (
+                  <span className="ml-2 text-xs text-gray-600">
+                    ({uploadProgress.currentPage}/{uploadProgress.totalPages})
+                  </span>
+                )}
               </div>
+
+              {/* 进度条 */}
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-primary h-2 rounded-full transition-all duration-300"
@@ -177,8 +188,8 @@ function KnowledgeSidebar() {
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
                     className={`px-3 py-1 rounded-md text-sm transition-colors ${currentPage === 1
-                        ? 'text-gray-400 cursor-not-allowed'
-                        : 'text-gray-700 hover:bg-gray-100'
+                      ? 'text-gray-400 cursor-not-allowed'
+                      : 'text-gray-700 hover:bg-gray-100'
                       }`}
                   >
                     <i className="fa fa-chevron-left" aria-hidden="true"></i>
@@ -198,8 +209,8 @@ function KnowledgeSidebar() {
                             key={page}
                             onClick={() => setCurrentPage(page)}
                             className={`w-8 h-8 rounded-md text-sm transition-colors ${currentPage === page
-                                ? 'bg-primary text-white'
-                                : 'text-gray-700 hover:bg-gray-100'
+                              ? 'bg-primary text-white'
+                              : 'text-gray-700 hover:bg-gray-100'
                               }`}
                           >
                             {page}
@@ -220,8 +231,8 @@ function KnowledgeSidebar() {
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
                     className={`px-3 py-1 rounded-md text-sm transition-colors ${currentPage === totalPages
-                        ? 'text-gray-400 cursor-not-allowed'
-                        : 'text-gray-700 hover:bg-gray-100'
+                      ? 'text-gray-400 cursor-not-allowed'
+                      : 'text-gray-700 hover:bg-gray-100'
                       }`}
                   >
                     <i className="fa fa-chevron-right" aria-hidden="true"></i>

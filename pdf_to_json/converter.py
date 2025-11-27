@@ -76,7 +76,7 @@ class PDFToJSONConverter:
         )
 
     def convert(self, pdf_path: str, analyze_images: bool = False,
-                verbose: bool = False) -> Dict:
+                verbose: bool = False, progress_callback=None) -> Dict:
         """
         Convert PDF to structured JSON format.
 
@@ -84,6 +84,7 @@ class PDFToJSONConverter:
             pdf_path: Path to the PDF file
             analyze_images: Whether to use AI to analyze images
             verbose: Whether to print progress messages
+            progress_callback: Optional callback function(current_page, total_pages, message)
 
         Returns:
             Dictionary containing structured PDF content
@@ -98,6 +99,12 @@ class PDFToJSONConverter:
         self.image_cache.clear()
 
         for page_num in range(len(doc)):
+            if verbose:
+                print(f"[DEBUG] Processing page {page_num + 1}/{len(doc)}...", flush=True)
+            
+            if progress_callback:
+                progress_callback(page_num + 1, len(doc), f"正在解析第 {page_num + 1}/{len(doc)} 页")
+
             page = doc[page_num]
             page_content = {
                 "page_number": page_num + 1
@@ -155,6 +162,14 @@ class PDFToJSONConverter:
                         # First time encountering this image
                         if verbose:
                             print(f"Analyzing image {img_index + 1} (xref={xref}) on page {page_num + 1}...")
+                        
+                        # Notify frontend about image analysis progress
+                        if progress_callback:
+                            progress_callback(
+                                page_num + 1, 
+                                len(doc), 
+                                f"正在分析图片 ({img_index + 1}/{len(image_list)})"
+                            )
 
                         # Get image data
                         base_image = doc.extract_image(xref)

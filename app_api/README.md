@@ -127,12 +127,77 @@ curl http://localhost:5000/api/documents
 
 **Response**: Server-Sent Events (SSE) 流
 
-**Progress Events**:
+**Progress Event Structure**:
+```json
+{
+  "stage": "parsing|processing|storing|completed|error",
+  "message": "当前操作描述",
+  "current_step": "详细步骤说明",
+  "progress_percent": 0-100,
+  "current_page": 1,
+  "total_pages": 27,
+  "data": {...}
+}
 ```
-data: {"stage": "init", "progress_percent": 0, "message": "开始处理..."}
-data: {"stage": "parsing", "progress_percent": 10, "message": "解析PDF..."}
-data: {"stage": "processing", "progress_percent": 50, "current_page": 5}
-data: {"stage": "completed", "progress_percent": 100, "data": {...}}
+
+**Processing Stages**:
+
+1. **初始化** (0-5%)
+```json
+{"stage": "idle", "progress_percent": 0, "message": ""}
+```
+
+2. **PDF解析** (5-15%)
+```json
+{"stage": "parsing", "current_step": "解析第 5/27 页", "message": "正在解析PDF文档", "progress_percent": 6.9, "current_page": 5, "total_pages": 27}
+```
+
+如果PDF包含图片，会显示图片分析进度：
+```json
+{"stage": "parsing", "current_step": "解析第 5/27 页", "message": "正在分析图片 (1/3)", "progress_percent": 7.2}
+```
+
+3. **逐页处理** (15-85%)
+
+每页依次经过以下步骤：
+```json
+// 生成摘要
+{"stage": "processing", "current_step": "生成摘要", "message": "生成页面摘要", "progress_percent": 18.5}
+
+// 摘要向量化
+{"stage": "processing", "current_step": "摘要向量化", "message": "摘要向量化", "progress_percent": 19.2}
+
+// 内容向量化
+{"stage": "processing", "current_step": "内容向量化", "message": "内容向量化", "progress_percent": 19.8}
+
+// 页面完成
+{"stage": "processing", "current_step": "页面处理完成", "message": "页面处理完成", "progress_percent": 20.5}
+```
+
+4. **数据存储** (85-100%)
+```json
+{"stage": "storing", "current_step": "数据存储", "message": "正在存储 27 个向量到数据库...", "progress_percent": 90}
+```
+
+5. **完成**
+```json
+{
+  "stage": "completed",
+  "progress_percent": 100,
+  "message": "处理完成！成功存储 27 页",
+  "data": {
+    "filename": "document.pdf",
+    "owner": "username",
+    "total_pages": 27,
+    "processed_pages": 27,
+    "collection": "pdf_knowledge_base"
+  }
+}
+```
+
+6. **错误处理**
+```json
+{"stage": "error", "error": "错误描述", "progress_percent": 0}
 ```
 
 **示例**:
