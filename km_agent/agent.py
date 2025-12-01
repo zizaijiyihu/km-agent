@@ -32,7 +32,8 @@ class KMAgent:
     - Never fabricate information
     """
 
-    SYSTEM_PROMPT = """你是金山知识管理agent，可以根据用户需求查询相关知识库，并且根据知识库返回的内容，给用户准确答案。
+    # 基础系统提示词(所有模式共用)
+    SYSTEM_PROMPT_BASE = """你是金山知识管理agent，可以根据用户需求查询相关知识库，并且根据知识库返回的内容，给用户准确答案。
 
 注意事项：
 1. 如果某个知识切片的内容不完全，你可以继续查询出他后续的切片，以保证知识完全
@@ -74,6 +75,37 @@ class KMAgent:
 - get_subordinates: 获取指定用户的下属列表（不指定则获取当前用户的下属）
 - get_subordinate_employee_info: 获取下属的员工信息（需要权限验证）
 """
+
+    # 提示词模块库 - 不同模式的特殊指令
+    PROMPT_MODULES = {
+        "reminder": """
+【提醒模式特殊要求】
+1. 直接给出最终结论，不要输出推理过程和思考步骤
+2. 回答要极其简洁，控制在100字以内
+3. 如果查询后发现以下任一情况：
+   - 知识库无相关信息
+   - 查询结果为空
+   - 工具返回结果不满足提醒条件（例如："最近没有辛苦的同学"、"没有异常考勤"等）
+   请直接返回: [NO_RESULT]
+4. 只有在有明确、有价值的答案时才输出内容，否则一律返回 [NO_RESULT]
+5. 禁止输出类似"根据查询结果"、"让我分析一下"等推理性语句
+""",
+
+        "summary": """
+【摘要模式特殊要求】
+1. 提取关键信息，生成结构化摘要
+2. 使用项目符号列表组织内容
+3. 控制在200字以内
+4. 突出重点，省略次要细节
+""",
+    }
+
+    # 响应标记常量
+    class ResponseMarkers:
+        NO_RESULT = "[NO_RESULT]"          # 无结果或不满足条件
+        PERMISSION_DENIED = "[DENIED]"     # 权限不足
+        ERROR = "[ERROR]"                   # 执行错误
+        PARTIAL_RESULT = "[PARTIAL]"       # 部分结果
 
     def __init__(
         self,
@@ -121,9 +153,6 @@ class KMAgent:
 
         # Load user custom instructions
         self.custom_instructions = self._load_instructions()
-
-        # Build effective system prompt with custom instructions
-        self.effective_system_prompt = self._build_system_prompt()
         
         # Conversation manager (optional)
         self.conversation_manager = None
@@ -156,39 +185,42 @@ class KMAgent:
                 print(f"Warning: Failed to load custom instructions: {e}")
             return []
     
-    def _build_system_prompt(self) -> str:
+    def _build_effective_prompt(self, mode: str = None) -> str:
         """
-        Build effective system prompt by combining base prompt with custom instructions
-        
+        Build effective system prompt by combining base prompt, custom instructions, and mode-specific modules
+
+        Args:
+            mode: Mode identifier ('reminder', 'summary', etc.). If None, only base prompt is used.
+
         Returns:
             Complete system prompt string
         """
-        base_prompt = self.SYSTEM_PROMPT
-        
-        if not self.custom_instructions:
-            return base_prompt
-        
-        # Format custom instructions
-        instructions_text = "\n".join([
-            f"{i+1}. {inst['content']}" 
-            for i, inst in enumerate(self.custom_instructions)
-        ])
-        
-        # Append custom instructions to base prompt
-        return f"""{base_prompt}
+        prompt_parts = [self.SYSTEM_PROMPT_BASE]
 
+        # Add custom instructions if available
+        if self.custom_instructions:
+            instructions_text = "\n".join([
+                f"{i+1}. {inst['content']}"
+                for i, inst in enumerate(self.custom_instructions)
+            ])
+            prompt_parts.append(f"""
 **用户自定义指示**（请严格遵守以下要求）：
 {instructions_text}
-"""
+""")
+
+        # Add mode-specific prompt module if specified
+        if mode and mode in self.PROMPT_MODULES:
+            prompt_parts.append(self.PROMPT_MODULES[mode])
+
+        return "\n\n".join(prompt_parts)
     
     def reload_instructions(self):
         """
         Reload custom instructions from database
-        
+
         Useful when instructions are updated during agent lifecycle
         """
         self.custom_instructions = self._load_instructions()
-        self.effective_system_prompt = self._build_system_prompt()
         if self.verbose:
             print(f"Reloaded {len(self.custom_instructions)} custom instructions")
 
@@ -205,13 +237,23 @@ class KMAgent:
         """
         return self.agent_tools.execute_tool(tool_name, tool_args, current_user=self.owner)
 
-    def chat_stream(self, user_message: str, history: Optional[List[Dict]] = None):
+    def chat_stream(
+        self,
+        user_message: str,
+        history: Optional[List[Dict]] = None,
+        mode: str = None,
+        stream_content: bool = True
+    ):
         """
         Chat with the agent using streaming response
 
         Args:
             user_message: User's message
             history: Optional conversation history
+            mode: Mode identifier for specialized behavior ('reminder', 'summary', etc.)
+            stream_content: Whether to stream content chunks immediately
+                          - True: Stream content as it arrives (default, for normal chat)
+                          - False: Accumulate content and yield once at the end (for reminder mode)
 
         Yields:
             Dictionary chunks containing:
@@ -221,21 +263,25 @@ class KMAgent:
         if history is None:
             history = []
 
+        # Build system prompt based on mode
+        system_prompt = self._build_effective_prompt(mode=mode)
+
         # Always use the latest system prompt (important for dynamic instruction updates)
         if not history:
-            messages = [{"role": "system", "content": self.effective_system_prompt}]
+            messages = [{"role": "system", "content": system_prompt}]
             # Save system message if conversation manager is enabled
             if self.conversation_manager:
-                self.conversation_manager.save_system_message(self.effective_system_prompt)
+                self.conversation_manager.save_system_message(system_prompt)
         else:
             # Copy history but update the system prompt to reflect latest instructions
             messages = history.copy()
             # Replace the first system message with the updated prompt
             if messages and messages[0]["role"] == "system":
-                messages[0] = {"role": "system", "content": self.effective_system_prompt}
+                messages[0] = {"role": "system", "content": system_prompt}
                 if self.verbose:
                     print(f"\n[DEBUG] Updated system prompt in history")
                     print(f"[DEBUG] Custom instructions count: {len(self.custom_instructions)}")
+                    print(f"[DEBUG] Mode: {mode}")
 
         # Add user message
         messages.append({"role": "user", "content": user_message})
@@ -282,11 +328,12 @@ class KMAgent:
                 # Handle content streaming
                 if delta.content:
                     collected_content += delta.content
-                    # Yield content chunk immediately for streaming experience
-                    yield {
-                        "type": "content",
-                        "data": delta.content
-                    }
+                    # Yield content chunk immediately only if stream_content is True
+                    if stream_content:
+                        yield {
+                            "type": "content",
+                            "data": delta.content
+                        }
 
                 # Handle tool calls
                 if delta.tool_calls:
@@ -318,12 +365,19 @@ class KMAgent:
             
             # Only save assistant message to database if it's the final answer (no tool calls)
             if not collected_tool_calls:
+                # For non-streaming mode, yield the complete content now
+                if not stream_content and collected_content:
+                    yield {
+                        "type": "content",
+                        "data": collected_content
+                    }
+
                 if self.conversation_manager:
                     self.conversation_manager.save_assistant_message(
                         content=collected_content,
                         tool_calls=None
                     )
-                
+
                 # Get clean history (consistent with DB) for the frontend
                 # Filter out intermediate tool calls and tool results from the returned history
                 clean_history = []
@@ -335,7 +389,7 @@ class KMAgent:
                     elif msg['role'] == 'assistant' and not msg.get('tool_calls'):
                         clean_history.append(msg)
                     # Skip tool messages (role='tool')
-                
+
                 yield {
                     "type": "done",
                     "data": {

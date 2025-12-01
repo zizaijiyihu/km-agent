@@ -8,9 +8,12 @@ const API_BASE_URL = '/api'
  * @param {AbortSignal} signal - 可选的 AbortSignal 用于取消请求
  * @param {string} conversationId - 可选的会话ID
  * @param {boolean} enableHistory - 是否启用历史记录
+ * @param {Object} options - 可选配置 {mode: 'reminder'|'summary', streamContent: true|false}
  * @returns {Promise<Object>} 最终结果
  */
-export async function sendChatMessage(message, history = [], onChunk, signal = null, conversationId = null, enableHistory = true) {
+export async function sendChatMessage(message, history = [], onChunk, signal = null, conversationId = null, enableHistory = true, options = {}) {
+  const { mode = null, streamContent = true } = options
+
   const response = await fetch(`${API_BASE_URL}/chat`, {
     method: 'POST',
     headers: {
@@ -20,7 +23,9 @@ export async function sendChatMessage(message, history = [], onChunk, signal = n
       message,
       history,
       conversation_id: conversationId,
-      enable_history: enableHistory
+      enable_history: enableHistory,
+      mode: mode,
+      stream_content: streamContent
     }),
     signal: signal
   })

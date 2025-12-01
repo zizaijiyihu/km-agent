@@ -27,25 +27,43 @@ function ReminderAnalysisCard({ reminder, onClose }) {
         abortControllerRef.current = new AbortController()
         let streamingContent = ''
 
-        // 添加系统提示词，要求模型返回简短答案
-        const wrappedMessage = `${reminder.content}\n\n【系统要求】该请求是发送简短消息所需，直接给出最终答案，最言简意赅表明情况即可，不需要过度分析。`
-
         try {
             await sendChatMessage(
-                wrappedMessage,
+                reminder.content,  // 直接使用提醒内容，不需要额外包装
                 null, // 不传历史
                 (chunk) => {
                     if (chunk.type === 'content') {
                         streamingContent += chunk.content
+
+                        // 检测 [NO_RESULT] 标记
+                        if (streamingContent.includes('[NO_RESULT]')) {
+                            // 静默关闭，不显示内容
+                            setTimeout(() => {
+                                onClose(reminder.id)
+                            }, 300)
+                            return
+                        }
+
                         setContent(streamingContent)
                     }
                 },
                 abortControllerRef.current.signal,
                 null, // 不传 conversation_id
-                false // 禁用历史记录
+                false, // 禁用历史记录
+                {
+                    mode: 'reminder',        // 启用提醒模式
+                    streamContent: false     // 不流式输出，累积后一次性返回
+                }
             )
 
-            setStatus('done')
+            // 最终检查一次是否包含 [NO_RESULT]
+            if (streamingContent.includes('[NO_RESULT]')) {
+                setTimeout(() => {
+                    onClose(reminder.id)
+                }, 300)
+            } else {
+                setStatus('done')
+            }
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('Analysis aborted for reminder:', reminder.id)

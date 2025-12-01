@@ -15,7 +15,9 @@ def chat():
         "message": "user question",
         "history": [...],  // optional, conversation history
         "conversation_id": "uuid",  // optional, for history persistence
-        "enable_history": true  // optional, whether to enable history persistence
+        "enable_history": true,  // optional, whether to enable history persistence
+        "mode": "reminder",  // optional, mode identifier ('reminder', 'summary', etc.)
+        "stream_content": false  // optional, whether to stream content (default true)
     }
 
     Note: User identification is handled server-side via get_current_user()
@@ -40,11 +42,15 @@ def chat():
         history = data.get('history', None)
         conversation_id = data.get('conversation_id')
         enable_history = data.get('enable_history', False)
-        
+        mode = data.get('mode', None)
+        stream_content = data.get('stream_content', True)
+
         owner = get_current_user() # Always use trusted user from server
         print(f"[DEBUG] Using owner: {owner}", flush=True)
         print(f"[DEBUG] Conversation ID: {conversation_id}", flush=True)
         print(f"[DEBUG] Enable history: {enable_history}", flush=True)
+        print(f"[DEBUG] Mode: {mode}", flush=True)
+        print(f"[DEBUG] Stream content: {stream_content}", flush=True)
 
         # Get or create KMAgent instance for the specific owner
         km_agent_instance = get_or_create_km_agent(
@@ -59,7 +65,12 @@ def chat():
         def generate_stream():
             """Generate SSE stream from agent"""
             try:
-                for chunk in km_agent_instance.chat_stream(user_message, history):
+                for chunk in km_agent_instance.chat_stream(
+                    user_message,
+                    history,
+                    mode=mode,
+                    stream_content=stream_content
+                ):
                     yield f"data: {json.dumps(chunk)}\n\n"
             except Exception as e:
                 error_chunk = {
