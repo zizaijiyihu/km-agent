@@ -15,6 +15,7 @@ function ChatView() {
   const setIsLoading = useStore(state => state.setIsLoading)
   const toggleKnowledgeSidebar = useStore(state => state.toggleKnowledgeSidebar)
   const toggleInstructionSidebar = useStore(state => state.toggleInstructionSidebar)
+  const toggleReminderSidebar = useStore(state => state.toggleReminderSidebar)
 
   const currentConversationId = useStore(state => state.currentConversationId)
   const setCurrentConversationId = useStore(state => state.setCurrentConversationId)
@@ -348,6 +349,13 @@ function ChatView() {
                   title="我的指示"
                 >
                   <i className="fa fa-lightbulb-o" aria-hidden="true"></i>
+                </button>
+                <button
+                  onClick={toggleReminderSidebar}
+                  className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full transition-colors"
+                  title="我的提醒"
+                >
+                  <i className="fa fa-bell-o" aria-hidden="true"></i>
                 </button>
                 <button
                   onClick={toggleKnowledgeSidebar}

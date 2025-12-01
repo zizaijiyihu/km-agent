@@ -14,6 +14,10 @@ const useStore = create((set, get) => ({
   instructions: [],
   isInstructionsLoading: false,
 
+  // 提醒相关状态
+  reminders: [],
+  isRemindersLoading: false,
+
   // 上传相关状态
   uploadProgress: {
     isUploading: false,
@@ -28,6 +32,7 @@ const useStore = create((set, get) => ({
   // 侧边栏状态
   isKnowledgeSidebarOpen: false,
   isInstructionSidebarOpen: false,
+  isReminderSidebarOpen: false,
   isConversationSidebarOpen: false,
   isPdfViewerOpen: false,
   currentPdf: null, // { filename, owner, pageNumber }
@@ -86,6 +91,25 @@ const useStore = create((set, get) => ({
     instructions: state.instructions.filter(inst => inst.id !== id)
   })),
 
+  // Actions - 提醒
+  setReminders: (reminders) => set({ reminders }),
+
+  setIsRemindersLoading: (loading) => set({ isRemindersLoading: loading }),
+
+  addReminder: (reminder) => set((state) => ({
+    reminders: [reminder, ...state.reminders]
+  })),
+
+  updateReminderInList: (id, data) => set((state) => ({
+    reminders: state.reminders.map(reminder =>
+      reminder.id === id ? { ...reminder, ...data } : reminder
+    )
+  })),
+
+  removeReminder: (id) => set((state) => ({
+    reminders: state.reminders.filter(reminder => reminder.id !== id)
+  })),
+
   addDocument: (document) => set((state) => ({
     documents: [document, ...state.documents]
   })),
@@ -124,22 +148,33 @@ const useStore = create((set, get) => ({
   // Actions - 侧边栏
   toggleKnowledgeSidebar: () => set((state) => ({
     isKnowledgeSidebarOpen: !state.isKnowledgeSidebarOpen,
-    isInstructionSidebarOpen: false // 互斥
+    isInstructionSidebarOpen: false, // 互斥
+    isReminderSidebarOpen: false // 互斥
   })),
 
   setKnowledgeSidebarOpen: (open) => set({ isKnowledgeSidebarOpen: open }),
 
   toggleInstructionSidebar: () => set((state) => ({
     isInstructionSidebarOpen: !state.isInstructionSidebarOpen,
-    isKnowledgeSidebarOpen: false // 互斥
+    isKnowledgeSidebarOpen: false, // 互斥
+    isReminderSidebarOpen: false // 互斥
   })),
 
   setInstructionSidebarOpen: (open) => set({ isInstructionSidebarOpen: open }),
 
+  toggleReminderSidebar: () => set((state) => ({
+    isReminderSidebarOpen: !state.isReminderSidebarOpen,
+    isKnowledgeSidebarOpen: false, // 互斥
+    isInstructionSidebarOpen: false // 互斥
+  })),
+
+  setReminderSidebarOpen: (open) => set({ isReminderSidebarOpen: open }),
+
   toggleConversationSidebar: () => set((state) => ({
     isConversationSidebarOpen: !state.isConversationSidebarOpen,
     isKnowledgeSidebarOpen: false, // 互斥
-    isInstructionSidebarOpen: false // 互斥
+    isInstructionSidebarOpen: false, // 互斥
+    isReminderSidebarOpen: false // 互斥
   })),
 
   setConversationSidebarOpen: (open) => set({ isConversationSidebarOpen: open }),

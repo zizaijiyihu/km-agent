@@ -563,3 +563,86 @@ export async function deleteConversation(conversationId) {
 
   return response.json()
 }
+
+// ==================== 提醒管理 API ====================
+
+/**
+ * 获取提醒列表
+ * @returns {Promise<Object>} 提醒列表
+ */
+export async function getReminders() {
+  const url = `${API_BASE_URL}/reminders`
+  const response = await fetch(url)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to fetch reminders')
+  }
+
+  return response.json()
+}
+
+/**
+ * 创建新提醒
+ * @param {string} content - 提醒内容
+ * @returns {Promise<Object>} 创建结果
+ */
+export async function createReminder(content) {
+  const body = { content }
+  const response = await fetch(`${API_BASE_URL}/reminders`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body)
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to create reminder')
+  }
+
+  return response.json()
+}
+
+/**
+ * 更新提醒
+ * @param {number} id - 提醒ID
+ * @param {string} content - 提醒内容
+ * @returns {Promise<Object>} 更新结果
+ */
+export async function updateReminder(id, content) {
+  const body = { content }
+  const response = await fetch(`${API_BASE_URL}/reminders/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body)
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to update reminder')
+  }
+
+  return response.json()
+}
+
+/**
+ * 删除提醒
+ * @param {number} id - 提醒ID
+ * @returns {Promise<Object>} 删除结果
+ */
+export async function deleteReminder(id) {
+  const response = await fetch(`${API_BASE_URL}/reminders/${id}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to delete reminder')
+  }
+
+  return response.json()
+}
