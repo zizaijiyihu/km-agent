@@ -14,19 +14,34 @@ function ConversationSidebar() {
     const removeConversation = useStore(state => state.removeConversation)
 
     const [isLoading, setIsLoading] = useState(false)
+    const [offset, setOffset] = useState(0)
+    const [hasMore, setHasMore] = useState(true)
+    const LIMIT = 20
 
     // 加载会话列表
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && conversations.length === 0) {
             loadConversations()
         }
     }, [isOpen])
 
-    const loadConversations = async () => {
+    const loadConversations = async (isLoadMore = false) => {
+        if (isLoading) return
+
         setIsLoading(true)
         try {
-            const res = await getConversations(50, 0) // 加载最近50条
-            setConversations(res.data.conversations || [])
+            const currentOffset = isLoadMore ? offset : 0
+            const res = await getConversations(LIMIT, currentOffset)
+            const newConversations = res.data.conversations || []
+
+            if (isLoadMore) {
+                setConversations([...conversations, ...newConversations])
+            } else {
+                setConversations(newConversations)
+            }
+
+            setOffset(currentOffset + newConversations.length)
+            setHasMore(newConversations.length === LIMIT)
         } catch (error) {
             console.error('Failed to load conversations:', error)
         } finally {
@@ -122,13 +137,16 @@ function ConversationSidebar() {
                     </div>
 
                     {/* 会话列表 */}
-                    <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-1">
-                        {isLoading ? (
-                            <div className="flex flex-col items-center justify-center py-10 text-gray-400 gap-2">
-                                <i className="fa fa-circle-o-notch fa-spin text-xl"></i>
-                                <span className="text-sm">加载中...</span>
-                            </div>
-                        ) : conversations.length === 0 ? (
+                    <div
+                        className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-1"
+                        onScroll={(e) => {
+                            const { scrollTop, clientHeight, scrollHeight } = e.target
+                            if (scrollHeight - scrollTop - clientHeight < 50 && !isLoading && hasMore) {
+                                loadConversations(true)
+                            }
+                        }}
+                    >
+                        {conversations.length === 0 && !isLoading ? (
                             <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-3">
                                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
                                     <i className="fa fa-comments-o text-xl"></i>
@@ -136,33 +154,48 @@ function ConversationSidebar() {
                                 <p className="text-sm">暂无历史会话</p>
                             </div>
                         ) : (
-                            conversations.map(conv => (
-                                <div
-                                    key={conv.conversation_id}
-                                    onClick={() => handleSelectChat(conv.conversation_id)}
-                                    className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 border ${currentConversationId === conv.conversation_id
-                                        ? 'bg-blue-50/80 text-primary border-blue-100 shadow-sm'
-                                        : 'hover:bg-gray-50 text-gray-700 border-transparent hover:border-gray-100'
-                                        }`}
-                                >
-                                    <div className="pr-8 truncate font-medium text-sm">
-                                        {conv.title || '新会话'}
-                                    </div>
-                                    <div className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
-                                        <i className="fa fa-clock-o text-[10px]"></i>
-                                        {new Date(conv.updated_at).toLocaleDateString()} {new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
-
-                                    {/* 删除按钮 (悬停显示) */}
-                                    <button
-                                        onClick={(e) => handleDeleteChat(e, conv.conversation_id)}
-                                        className="absolute right-2 top-1/2 transform -translate-y-1/2 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all"
-                                        title="删除会话"
+                            <>
+                                {conversations.map(conv => (
+                                    <div
+                                        key={conv.conversation_id}
+                                        onClick={() => handleSelectChat(conv.conversation_id)}
+                                        className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 border ${currentConversationId === conv.conversation_id
+                                            ? 'bg-blue-50/80 text-primary border-blue-100 shadow-sm'
+                                            : 'hover:bg-gray-50 text-gray-700 border-transparent hover:border-gray-100'
+                                            }`}
                                     >
-                                        <i className="fa fa-trash-o text-sm"></i>
-                                    </button>
-                                </div>
-                            ))
+                                        <div className="pr-8 truncate font-medium text-sm">
+                                            {conv.title || '新会话'}
+                                        </div>
+                                        <div className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
+                                            <i className="fa fa-clock-o text-[10px]"></i>
+                                            {new Date(conv.updated_at).toLocaleDateString()} {new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
+
+                                        {/* 删除按钮 (悬停显示) */}
+                                        <button
+                                            onClick={(e) => handleDeleteChat(e, conv.conversation_id)}
+                                            className="absolute right-2 top-1/2 transform -translate-y-1/2 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all"
+                                            title="删除会话"
+                                        >
+                                            <i className="fa fa-trash-o text-sm"></i>
+                                        </button>
+                                    </div>
+                                ))}
+
+                                {isLoading && (
+                                    <div className="flex flex-col items-center justify-center py-4 text-gray-400 gap-2">
+                                        <i className="fa fa-circle-o-notch fa-spin text-sm"></i>
+                                        <span className="text-xs">加载中...</span>
+                                    </div>
+                                )}
+
+                                {!hasMore && conversations.length > 0 && (
+                                    <div className="text-center py-4 text-xs text-gray-300">
+                                        没有更多了
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
 

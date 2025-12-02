@@ -45,6 +45,11 @@ def chat():
         mode = data.get('mode', None)
         stream_content = data.get('stream_content', True)
 
+        # 提醒模式：改写query添加特殊要求前缀
+        if mode == 'reminder':
+            user_message = f"使用【提醒模式特殊要求】{user_message}"
+            print(f"[DEBUG] Reminder mode: query rewritten with special prefix", flush=True)
+
         owner = get_current_user() # Always use trusted user from server
         print(f"[DEBUG] Using owner: {owner}", flush=True)
         print(f"[DEBUG] Conversation ID: {conversation_id}", flush=True)

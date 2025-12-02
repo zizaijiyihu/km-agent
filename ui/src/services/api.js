@@ -112,10 +112,12 @@ export async function sendChatMessage(message, history = [], onChunk, signal = n
 
 /**
  * 获取文档列表
+ * @param {number} page - 页码
+ * @param {number} pageSize - 每页数量
  * @returns {Promise<Object>} 文档列表
  */
-export async function getDocuments() {
-  const url = `${API_BASE_URL}/documents`
+export async function getDocuments(page = 1, pageSize = 20) {
+  const url = `${API_BASE_URL}/documents?page=${page}&page_size=${pageSize}`
 
   const response = await fetch(url)
 

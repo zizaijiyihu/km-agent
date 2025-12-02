@@ -14,6 +14,11 @@ function ReminderSidebar() {
     const [newContent, setNewContent] = useState('')
     const [isSaving, setIsSaving] = useState(false)
 
+    const [isLoading, setIsLoading] = useState(false)
+    const [page, setPage] = useState(1)
+    const [hasMore, setHasMore] = useState(true)
+    const PAGE_SIZE = 20
+
     // 加载提醒列表
     useEffect(() => {
         if (isOpen && reminders.length === 0) {
@@ -21,12 +26,27 @@ function ReminderSidebar() {
         }
     }, [isOpen])
 
-    const loadReminders = async () => {
+    const loadReminders = async (isLoadMore = false) => {
+        if (isLoading) return
+
+        setIsLoading(true)
         try {
-            const response = await getReminders()
-            setReminders(response.data || [])
+            const currentPage = isLoadMore ? page : 1
+            const response = await getReminders(currentPage, PAGE_SIZE)
+            const newReminders = response.data || []
+
+            if (isLoadMore) {
+                setReminders([...reminders, ...newReminders])
+            } else {
+                setReminders(newReminders)
+            }
+
+            setPage(currentPage + 1)
+            setHasMore(newReminders.length === PAGE_SIZE)
         } catch (error) {
             console.error('Failed to load reminders:', error)
+        } finally {
+            setIsLoading(false)
         }
     }
 
@@ -117,16 +137,39 @@ function ReminderSidebar() {
                 </div>
 
                 {/* 提醒列表 */}
-                <div className="space-y-4">
-                    {reminders.length === 0 ? (
+                <div
+                    className="space-y-4"
+                    onScroll={(e) => {
+                        const { scrollTop, clientHeight, scrollHeight } = e.target
+                        if (scrollHeight - scrollTop - clientHeight < 50 && !isLoading && hasMore) {
+                            loadReminders(true)
+                        }
+                    }}
+                >
+                    {reminders.length === 0 && !isLoading ? (
                         <div className="text-center text-gray-500 py-8">
                             <i className="fa fa-bell-o text-4xl mb-2" aria-hidden="true"></i>
                             <p className="text-sm">暂无提醒</p>
                         </div>
                     ) : (
-                        reminders.map((reminder) => (
-                            <ReminderItem key={reminder.id} reminder={reminder} />
-                        ))
+                        <>
+                            {reminders.map((reminder) => (
+                                <ReminderItem key={reminder.id} reminder={reminder} />
+                            ))}
+
+                            {isLoading && (
+                                <div className="flex flex-col items-center justify-center py-4 text-gray-400 gap-2">
+                                    <i className="fa fa-circle-o-notch fa-spin text-sm"></i>
+                                    <span className="text-xs">加载中...</span>
+                                </div>
+                            )}
+
+                            {!hasMore && reminders.length > 0 && (
+                                <div className="text-center py-4 text-xs text-gray-300">
+                                    没有更多了
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

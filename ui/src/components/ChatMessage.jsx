@@ -36,7 +36,19 @@ function ChatMessage({ message }) {
           </button>
         )
       }
-      return <a href={href} {...props} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>
+      // 普通外部链接 - 优化样式
+      return (
+        <a
+          href={href}
+          {...props}
+          className="hover:text-primary/80 transition-all duration-200 group inline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span className="border-b border-gray-300 group-hover:border-primary/60">{children}</span>
+          <i className="fa fa-external-link text-xs opacity-60 group-hover:opacity-100 ml-1" aria-hidden="true"></i>
+        </a>
+      )
     },
     // 代码块样式
     code: ({ node, inline, children, ...props }) => {

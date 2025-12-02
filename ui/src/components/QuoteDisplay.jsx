@@ -10,7 +10,8 @@ function QuoteDisplay({ visible }) {
     const [quotes, setQuotes] = useState([])
     const [loading, setLoading] = useState(false)
     const [page, setPage] = useState(1)
-    const [totalPages, setTotalPages] = useState(1)
+    const [hasMore, setHasMore] = useState(true)
+    const PAGE_SIZE = 10
 
     // Form state
     const [editingId, setEditingId] = useState(null)
@@ -76,13 +77,23 @@ function QuoteDisplay({ visible }) {
     }, [displayQuotes])
 
     // Fetch list for management
-    const fetchQuotesList = async (pageNum = 1) => {
+    const fetchQuotesList = async (isLoadMore = false) => {
+        if (loading) return
+
         setLoading(true)
         try {
-            const data = await getQuotes(pageNum, 10)
-            setQuotes(data.items)
-            setTotalPages(data.total_pages)
-            setPage(data.page)
+            const currentPage = isLoadMore ? page : 1
+            const data = await getQuotes(currentPage, PAGE_SIZE)
+            const newQuotes = data.items || []
+
+            if (isLoadMore) {
+                setQuotes([...quotes, ...newQuotes])
+            } else {
+                setQuotes(newQuotes)
+            }
+
+            setPage(currentPage + 1)
+            setHasMore(newQuotes.length === PAGE_SIZE)
         } catch (error) {
             console.error('Failed to fetch quotes list:', error)
         } finally {
@@ -91,10 +102,10 @@ function QuoteDisplay({ visible }) {
     }
 
     useEffect(() => {
-        if (isModalOpen) {
-            fetchQuotesList(page)
+        if (isModalOpen && quotes.length === 0) {
+            fetchQuotesList()
         }
-    }, [isModalOpen, page])
+    }, [isModalOpen])
 
     const handleAdd = async () => {
         if (!newContent.trim()) return
@@ -173,8 +184,8 @@ function QuoteDisplay({ visible }) {
                 {/* Quote Component - Centered content */}
                 <div
                     className={`flex items-center justify-center text-2xl text-gray-800 font-medium transition-all ${isTransitioning
-                            ? 'opacity-0 transform scale-95 duration-700'
-                            : 'opacity-100 transform scale-100 duration-500'
+                        ? 'opacity-0 transform scale-95 duration-700'
+                        : 'opacity-100 transform scale-100 duration-500'
                         }`}
                 >
                     {currentQuote?.content || '创造知识   共享知识'}
@@ -206,94 +217,93 @@ function QuoteDisplay({ visible }) {
                         </div>
 
                         {/* List */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                            {loading ? (
-                                <div className="text-center py-8 text-gray-500">加载中...</div>
+                        <div
+                            className="flex-1 overflow-y-auto p-4 space-y-3"
+                            onScroll={(e) => {
+                                const { scrollTop, clientHeight, scrollHeight } = e.target
+                                if (scrollHeight - scrollTop - clientHeight < 50 && !loading && hasMore) {
+                                    fetchQuotesList(true)
+                                }
+                            }}
+                        >
+                            {quotes.length === 0 && !loading ? (
+                                <div className="text-center py-8 text-gray-500">暂无语录</div>
                             ) : (
-                                quotes.map(quote => (
-                                    <div key={quote.id} className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors group">
-                                        {editingId === quote.id ? (
-                                            <div className="space-y-3">
-                                                <textarea
-                                                    value={editContent}
-                                                    onChange={(e) => setEditContent(e.target.value)}
-                                                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary/50 outline-none resize-none"
-                                                    rows="2"
-                                                />
-                                                <div className="flex items-center justify-between">
+                                <>
+                                    {quotes.map(quote => (
+                                        <div key={quote.id} className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors group">
+                                            {editingId === quote.id ? (
+                                                <div className="space-y-3">
+                                                    <textarea
+                                                        value={editContent}
+                                                        onChange={(e) => setEditContent(e.target.value)}
+                                                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary/50 outline-none resize-none"
+                                                        rows="2"
+                                                    />
+                                                    <div className="flex items-center justify-between">
 
-                                                    <div className="flex gap-2">
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={cancelEdit}
+                                                                className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700"
+                                                            >
+                                                                取消
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleUpdate(quote.id)}
+                                                                className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90"
+                                                            >
+                                                                保存
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div className="flex-1">
+                                                        <div className="text-gray-800">{quote.content}</div>
+
+                                                    </div>
+                                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <button
-                                                            onClick={cancelEdit}
-                                                            className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700"
+                                                            onClick={() => handleDelete(quote.id)}
+                                                            className="text-gray-400 hover:text-red-500 p-1"
+                                                            title="删除"
                                                         >
-                                                            取消
+                                                            <i className="fa fa-trash"></i>
                                                         </button>
                                                         <button
-                                                            onClick={() => handleUpdate(quote.id)}
-                                                            className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90"
+                                                            onClick={() => startEdit(quote)}
+                                                            className="text-gray-400 hover:text-primary p-1"
+                                                            title="编辑"
                                                         >
-                                                            保存
+                                                            <i className="fa fa-pencil"></i>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleToggleFixed(quote)}
+                                                            className={`p-1 ${quote.is_fixed === 1 ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}
+                                                            title={quote.is_fixed === 1 ? "取消固定" : "设为固定"}
+                                                        >
+                                                            <i className="fa fa-thumb-tack"></i>
                                                         </button>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <div className="text-gray-800">{quote.content}</div>
+                                            )}
+                                        </div>
+                                    ))}
 
-                                                </div>
-                                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => handleDelete(quote.id)}
-                                                        className="text-gray-400 hover:text-red-500 p-1"
-                                                        title="删除"
-                                                    >
-                                                        <i className="fa fa-trash"></i>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => startEdit(quote)}
-                                                        className="text-gray-400 hover:text-primary p-1"
-                                                        title="编辑"
-                                                    >
-                                                        <i className="fa fa-pencil"></i>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleToggleFixed(quote)}
-                                                        className={`p-1 ${quote.is_fixed === 1 ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}
-                                                        title={quote.is_fixed === 1 ? "取消固定" : "设为固定"}
-                                                    >
-                                                        <i className="fa fa-thumb-tack"></i>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
+                                    {loading && (
+                                        <div className="text-center py-4 text-gray-400">加载中...</div>
+                                    )}
+
+                                    {!hasMore && quotes.length > 0 && (
+                                        <div className="text-center py-4 text-xs text-gray-300">
+                                            没有更多了
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
-
-                        {/* Pagination */}
-                        {totalPages > 1 && (
-                            <div className="flex justify-center gap-2 p-2 border-t border-gray-100 bg-gray-50">
-                                <button
-                                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                                    disabled={page === 1}
-                                    className="px-2 py-1 text-sm text-gray-600 disabled:opacity-50 hover:bg-gray-200 rounded"
-                                >
-                                    上一页
-                                </button>
-                                <span className="text-sm text-gray-500 self-center">{page} / {totalPages}</span>
-                                <button
-                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={page === totalPages}
-                                    className="px-2 py-1 text-sm text-gray-600 disabled:opacity-50 hover:bg-gray-200 rounded"
-                                >
-                                    下一页
-                                </button>
-                            </div>
-                        )}
 
                         {/* Add New */}
                         <div className="p-4 border-t border-gray-100 bg-gray-50">

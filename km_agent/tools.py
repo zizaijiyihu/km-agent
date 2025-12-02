@@ -6,6 +6,12 @@ import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import time
+import sys
+import os
+
+# Add project root to path to allow imports from other modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from aibase_news.news_service import get_aibase_news
 
 
 class AgentTools:
@@ -146,16 +152,44 @@ class AgentTools:
                 "type": "function",
                 "function": {
                     "name": "get_subordinate_employee_info",
-                    "description": "获取下属的员工信息。会自动验证当前用户是否有权限查看目标用户的员工信息（仅限直接下属）。",
+                    "description": "获取下属的详细员工档案信息，包括：基本信息（姓名、工号、邮箱前缀、性别、年龄、生日）、工作信息（部门、职位、职级、工作地点）、背景信息（入职日期、工龄、学历、毕业院校、专业特长、合同到期日期）。适用场景：查询下属的个人档案、了解团队成员背景、获取员工详细资料。会自动验证当前用户是否有权限查看目标用户的信息（仅限直接下属）。",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "target_email_prefix": {
                                 "type": "string",
-                                "description": "目标员工的邮箱前缀，例如 'lihaoze2'"
+                                "description": "目标员工的邮箱前缀，例如 'zhangqiushi1'"
                             }
                         },
                         "required": ["target_email_prefix"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_latest_ai_news",
+                    "description": "获取最新的AI相关新闻资讯。默认返回15条。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "limit": {
+                                "type": "integer",
+                                "description": "返回新闻数量，默认15",
+                                "default": 15
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_current_user_info",
+                    "description": "获取当前登录用户的详细信息，包括：基本信息（姓名、工号、邮箱前缀、性别、年龄、生日）、工作信息（部门、职位、职级、工作地点）、背景信息（入职日期、工龄、学历、毕业院校、专业特长、合同到期日期）。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {}
                     }
                 }
             }
@@ -426,6 +460,85 @@ class AgentTools:
                 "error": str(e)
             }
 
+    def _get_current_user_info(self, current_user_email_prefix: str) -> Dict:
+        """
+        Get current user's employee information
+        
+        Args:
+            current_user_email_prefix: Current user's email prefix
+            
+        Returns:
+            Employee information or error message
+        """
+        if self.verbose:
+            print(f"\n[Tool] get_current_user_info: current_user_email_prefix='{current_user_email_prefix}'")
+            
+        try:
+            result = self.user_info_service.get_current_user_info(
+                current_user_email_prefix=current_user_email_prefix
+            )
+            
+            if self.verbose:
+                if result.get('success'):
+                    print(f"[Tool] Successfully retrieved current user info")
+                else:
+                    print(f"[Tool] Failed: {result}")
+                    
+            return result
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"[Tool] Error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def _get_latest_ai_news(self, limit: int = 15) -> Dict:
+        """
+        Get latest AI news
+        
+        Args:
+            limit: Number of news items to return
+            
+        Returns:
+            List of news items
+        """
+        if self.verbose:
+            print(f"\n[Tool] get_latest_ai_news: limit={limit}")
+            
+        try:
+            # Call get_aibase_news. It returns a list. We slice it.
+            # We'll use default pages=2 to get enough news, then slice.
+            news_list = get_aibase_news(pages=2)
+            
+            if not news_list:
+                return {
+                    "success": True,
+                    "data": [],
+                    "message": "No news found"
+                }
+                
+            # Slice to limit
+            returned_news = news_list[:limit]
+            
+            if self.verbose:
+                print(f"[Tool] Retrieved {len(returned_news)} news items")
+                
+            return {
+                "success": True,
+                "data": returned_news,
+                "total": len(returned_news)
+            }
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"[Tool] Error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
     def execute_tool(self, tool_name: str, tool_args: Dict[str, Any], current_user: str = None) -> str:
         """
         Execute a tool function
@@ -471,6 +584,15 @@ class AgentTools:
                         current_user_email_prefix=current_user,
                         **tool_args
                     )
+            elif tool_name == "get_current_user_info":
+                if current_user is None:
+                    result = {"success": False, "error": "current_user is required for this tool"}
+                else:
+                    result = self._get_current_user_info(
+                        current_user_email_prefix=current_user
+                    )
+            elif tool_name == "get_latest_ai_news":
+                result = self._get_latest_ai_news(**tool_args)
             else:
                 result = {"success": False, "error": f"Unknown tool: {tool_name}"}
 

@@ -15,6 +15,11 @@ function InstructionSidebar() {
     const [newContent, setNewContent] = useState('')
     const [isSaving, setIsSaving] = useState(false)
 
+    const [isLoading, setIsLoading] = useState(false)
+    const [page, setPage] = useState(1)
+    const [hasMore, setHasMore] = useState(true)
+    const PAGE_SIZE = 20
+
     // 加载指示列表
     useEffect(() => {
         if (isOpen && instructions.length === 0) {
@@ -22,12 +27,27 @@ function InstructionSidebar() {
         }
     }, [isOpen])
 
-    const loadInstructions = async () => {
+    const loadInstructions = async (isLoadMore = false) => {
+        if (isLoading) return
+
+        setIsLoading(true)
         try {
-            const response = await getInstructions()
-            setInstructions(response.instructions || [])
+            const currentPage = isLoadMore ? page : 1
+            const response = await getInstructions(currentPage, PAGE_SIZE)
+            const newInstructions = response.instructions || []
+
+            if (isLoadMore) {
+                setInstructions([...instructions, ...newInstructions])
+            } else {
+                setInstructions(newInstructions)
+            }
+
+            setPage(currentPage + 1)
+            setHasMore(newInstructions.length === PAGE_SIZE)
         } catch (error) {
             console.error('Failed to load instructions:', error)
+        } finally {
+            setIsLoading(false)
         }
     }
 
@@ -126,16 +146,39 @@ function InstructionSidebar() {
                 </div>
 
                 {/* 指示列表 */}
-                <div className="space-y-4">
-                    {instructions.length === 0 ? (
+                <div
+                    className="space-y-4"
+                    onScroll={(e) => {
+                        const { scrollTop, clientHeight, scrollHeight } = e.target
+                        if (scrollHeight - scrollTop - clientHeight < 50 && !isLoading && hasMore) {
+                            loadInstructions(true)
+                        }
+                    }}
+                >
+                    {instructions.length === 0 && !isLoading ? (
                         <div className="text-center text-gray-500 py-8">
                             <i className="fa fa-lightbulb-o text-4xl mb-2" aria-hidden="true"></i>
                             <p className="text-sm">暂无指示</p>
                         </div>
                     ) : (
-                        instructions.map((inst) => (
-                            <InstructionItem key={inst.id} instruction={inst} />
-                        ))
+                        <>
+                            {instructions.map((inst) => (
+                                <InstructionItem key={inst.id} instruction={inst} />
+                            ))}
+
+                            {isLoading && (
+                                <div className="flex flex-col items-center justify-center py-4 text-gray-400 gap-2">
+                                    <i className="fa fa-circle-o-notch fa-spin text-sm"></i>
+                                    <span className="text-xs">加载中...</span>
+                                </div>
+                            )}
+
+                            {!hasMore && instructions.length > 0 && (
+                                <div className="text-center py-4 text-xs text-gray-300">
+                                    没有更多了
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

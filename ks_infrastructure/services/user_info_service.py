@@ -172,6 +172,12 @@ class KsUserInfoService:
             if response.status_code == 200:
                 result = response.json()
                 if result.get('success'):
+                    # 确保返回最新的考勤记录
+                    data = result.get('data', [])
+                    if isinstance(data, list):
+                        # 尝试按 actualstartdate 或 date 降序排序
+                        data.sort(key=lambda x: x.get('actualstartdate') or x.get('date') or '', reverse=True)
+                        result['data'] = data
                     return result
                 else:
                     raise KsServiceError(
@@ -303,6 +309,58 @@ class KsUserInfoService:
         except KsServiceError as e:
             logger.error(f"获取下属考勤记录失败: {e}")
             raise
+
+    def get_current_user_info(self, current_user_email_prefix: Optional[str] = None) -> Dict[str, Any]:
+        """
+        获取当前用户的员工信息
+        
+        Args:
+            current_user_email_prefix: 当前用户的邮箱前缀，如果为None则使用get_current_user()获取
+            
+        Returns:
+            dict: 包含员工信息的字典，格式如下：
+                {
+                    "success": bool,
+                    "data": {
+                        "userId": str,
+                        "userName": str,
+                        "userNo": str,
+                        "deptName": str,
+                        "deptFullName": str,
+                        "positionName": str,
+                        "rank": str,
+                        "location": str,
+                        "sex": str,
+                        "age": str,
+                        "birthday": str,
+                        "education": str,
+                        "graduationInstitution": str,
+                        "speciality": str,
+                        "joinedDate": str,
+                        "workAge": str,
+                        "contractExpire": str,
+                        ...
+                    }
+                }
+                
+        Raises:
+            KsServiceError: 当请求失败或返回错误时抛出
+        """
+        # 获取当前用户ID
+        if current_user_email_prefix is None:
+            current_user_email_prefix = get_current_user()
+            
+        logger.info(f"获取当前用户信息: {current_user_email_prefix}")
+        
+        try:
+            # 直接调用 get_employee_info 获取当前用户的信息
+            employee_info_result = self.get_employee_info(current_user_email_prefix)
+            return employee_info_result
+            
+        except KsServiceError as e:
+            logger.error(f"获取当前用户信息失败: {e}")
+            raise
+
 
 
 def ks_user_info(**kwargs) -> KsUserInfoService:

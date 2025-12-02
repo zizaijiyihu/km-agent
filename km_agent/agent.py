@@ -66,14 +66,29 @@ class KMAgent:
    - **关键**：链接地址必须是 `http://pdf/文档名.pdf:页码` 格式！
    - **再次强调**：没有调用工具或工具无结果时，不要显示任何引用！
 
+7. **AI新闻展示格式要求（极其重要，必须严格遵守）**：
+   - **每条新闻只需要一个可点击的链接，链接文本就是新闻标题**
+   - **格式：`- [新闻标题](新闻URL)`**
+   - **工具返回的每条新闻包含 title 和 url 字段，直接使用即可**
+   - **标准格式（每条新闻一行）**：
+     - [北京发布人工智能产业白皮书](https://news.aibase.com/zh/daily/12345)
+     - [字节跳动发布视频编辑模型Vidi2](https://news.aibase.com/zh/daily/67890)
+   
+   - **关键规则**：
+     * ✅ 链接文本 = 新闻标题（title 字段）
+     * ✅ 链接地址 = 新闻 URL（url 字段）
+     * ✅ 一条新闻一行，简洁清晰
+
 你有以下工具可以使用：
 - search_knowledge: 搜索知识库，返回相关的知识切片
 - get_pages: 根据文件名和页码获取完整的知识内容
-- get_subordinate_attendance: 获取下属的考勤记录（需要权限验证）
+- get_subordinate_attendance: 获取下属的考勤记录
 - get_manager_style: 获取管理者的管理风格类型
 - get_current_time: 获取当前时间
-- get_subordinates: 获取指定用户的下属列表（不指定则获取当前用户的下属）
-- get_subordinate_employee_info: 获取下属的员工信息（需要权限验证）
+- get_subordinates: 获取指定用户的下属列表
+- get_subordinate_employee_info: 获取下属的员工信息
+- get_current_user_info: 获取当前登录用户的详细信息
+- get_latest_ai_news: 获取最新的AI相关新闻资讯
 """
 
     # 提示词模块库 - 不同模式的特殊指令
@@ -291,7 +306,7 @@ class KMAgent:
             self.conversation_manager.save_user_message(user_message)
 
         tool_calls_made = []
-        max_iterations = 5
+        max_iterations = 10
         iteration = 0
 
         while iteration < max_iterations:
@@ -365,6 +380,14 @@ class KMAgent:
             
             # Only save assistant message to database if it's the final answer (no tool calls)
             if not collected_tool_calls:
+                if self.verbose:
+                    print(f"\n[Iteration {iteration}] No tool calls - Final answer received")
+                    print(f"[Iteration {iteration}] Content length: {len(collected_content)} chars")
+                    if len(collected_content) > 200:
+                        print(f"[Iteration {iteration}] Content preview: {collected_content[:200]}...")
+                    else:
+                        print(f"[Iteration {iteration}] Content: {collected_content}")
+
                 # For non-streaming mode, yield the complete content now
                 if not stream_content and collected_content:
                     yield {
@@ -389,6 +412,12 @@ class KMAgent:
                     elif msg['role'] == 'assistant' and not msg.get('tool_calls'):
                         clean_history.append(msg)
                     # Skip tool messages (role='tool')
+
+                if self.verbose:
+                    print(f"\n[Iteration {iteration}] Conversation completed")
+                    print(f"[Iteration {iteration}] Total tool calls made: {len(tool_calls_made)}")
+                    print(f"[Iteration {iteration}] Conversation ID: {self.conversation_manager.get_conversation_id() if self.conversation_manager else None}")
+                    print(f"[Iteration {iteration}] Clean history messages: {len(clean_history)}")
 
                 yield {
                     "type": "done",

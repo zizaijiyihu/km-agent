@@ -84,7 +84,7 @@ function ReminderAnalysisCard({ reminder, onClose }) {
         <div className="bg-transparent border-none rounded-lg overflow-hidden transition-all">
             {/* 头部 - 标题和操作 */}
             <div
-                className="p-3 bg-transparent border-b border-gray-50 flex items-start justify-between cursor-pointer hover:bg-white/30 transition-colors"
+                className="p-3 bg-gradient-to-r from-blue-50/30 to-gray-50/30 border-b border-gray-100 flex items-start justify-between cursor-pointer hover:from-blue-50/40 hover:to-gray-50/40 transition-all"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 <div className="flex-1 pr-2">
@@ -160,8 +160,15 @@ function ReminderAnalysisCard({ reminder, onClose }) {
                             strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
                             // 链接样式
                             a: ({ href, children, ...props }) => (
-                                <a href={href} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer" {...props}>
-                                    {children}
+                                <a
+                                    href={href}
+                                    className="hover:text-primary/80 transition-all duration-200 group inline"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    {...props}
+                                >
+                                    <span className="border-b border-gray-300 group-hover:border-primary/60">{children}</span>
+                                    <i className="fa fa-external-link text-xs opacity-60 group-hover:opacity-100 ml-1" aria-hidden="true"></i>
                                 </a>
                             ),
                             // 表格样式
