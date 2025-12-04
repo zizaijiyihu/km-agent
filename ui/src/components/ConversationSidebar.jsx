@@ -18,6 +18,18 @@ function ConversationSidebar() {
     const [hasMore, setHasMore] = useState(true)
     const LIMIT = 20
 
+    // 去重（避免重复 key 警告）
+    const uniqueConversations = (list) => {
+        const seen = new Set()
+        return list.filter(conv => {
+            const key = conv.conversation_id || conv.id || conv.uuid || conv._id
+            if (!key) return true
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+        })
+    }
+
     // 加载会话列表
     useEffect(() => {
         if (isOpen && conversations.length === 0) {
@@ -35,9 +47,9 @@ function ConversationSidebar() {
             const newConversations = res.data.conversations || []
 
             if (isLoadMore) {
-                setConversations([...conversations, ...newConversations])
+                setConversations(uniqueConversations([...conversations, ...newConversations]))
             } else {
-                setConversations(newConversations)
+                setConversations(uniqueConversations(newConversations))
             }
 
             setOffset(currentOffset + newConversations.length)
@@ -98,13 +110,23 @@ function ConversationSidebar() {
         <>
             {/* 触发器 (抽屉把手) - 仅在关闭时显示 */}
             {!isOpen && (
-                <div
+                <button
+                    type="button"
                     onClick={toggleSidebar}
-                    className="fixed left-0 top-1/2 transform -translate-y-1/2 w-6 h-24 bg-white border-y border-r border-gray-200 hover:bg-gray-50 rounded-r-xl cursor-pointer transition-all z-50 flex items-center justify-center group shadow-md"
+                    className="fixed left-0 top-1/2 transform -translate-y-1/2 z-50 group"
                     title="历史会话"
+                    aria-label="展开历史会话列表"
                 >
-                    <div className="w-1 h-8 bg-gray-300 group-hover:bg-gray-400 rounded-full"></div>
-                </div>
+                    <div className="flex flex-col items-center gap-1.5 px-2 py-2 bg-white/90 border border-gray-200 rounded-r-2xl shadow-md text-gray-600 hover:text-gray-800 hover:bg-white transition-all">
+                        <span className="w-8 h-8 flex items-center justify-center text-gray-500">
+                            <i className="fa fa-comments-o text-lg"></i>
+                        </span>
+                        <span className="text-[11px] font-medium text-gray-600">对话</span>
+                        <span className="w-6 h-6 flex items-center justify-center border border-gray-200 rounded-full bg-white shadow-sm">
+                            <i className="fa fa-chevron-right text-[9px]"></i>
+                        </span>
+                    </div>
+                </button>
             )}
 
             {/* 侧边栏抽屉 */}
@@ -155,9 +177,9 @@ function ConversationSidebar() {
                             </div>
                         ) : (
                             <>
-                                {conversations.map(conv => (
+                                {conversations.map((conv, index) => (
                                     <div
-                                        key={conv.conversation_id}
+                                        key={conv.conversation_id || conv.id || conv.uuid || conv._id || `conv-${index}`}
                                         onClick={() => handleSelectChat(conv.conversation_id)}
                                         className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 border ${currentConversationId === conv.conversation_id
                                             ? 'bg-blue-50/80 text-primary border-blue-100 shadow-sm'

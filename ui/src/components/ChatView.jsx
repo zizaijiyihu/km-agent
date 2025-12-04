@@ -47,6 +47,16 @@ function ChatView() {
     }
   }, [messages])
 
+  // 回到首页（无消息态）时重置欢迎语和输入区
+  useEffect(() => {
+    if (!hasMessages) {
+      setGreetingVisible(true)
+      setUploadedImages([])
+      setAnalyzingImage(null)
+      setInputValue('')
+    }
+  }, [hasMessages])
+
   // 生成缩略图
   const generateThumbnail = (file) => {
     return new Promise((resolve) => {

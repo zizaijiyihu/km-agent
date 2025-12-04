@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import ReminderTileCard from './ReminderTileCard'
 import useStore from '../store/useStore'
 
@@ -9,6 +9,22 @@ function ReminderTilesPanel() {
     const closedReminders = useStore(state => state.closedReminders)
     const closeReminder = useStore(state => state.closeReminder)
     const analyzedIds = useStore(state => state.analyzedIds)
+    const fetchReminders = useStore(state => state.fetchReminders)
+
+    // 确保在初始渲染时一定会触发一次请求，避免页面偶发不展示的问题
+    const hasRequestedRef = useRef(false)
+    useEffect(() => {
+        if (hasRequestedRef.current || isLoading) return
+
+        if (reminders.length === 0) {
+            hasRequestedRef.current = true
+            fetchReminders().catch((error) => {
+                console.error('Failed to auto fetch reminders:', error)
+            })
+        } else {
+            hasRequestedRef.current = true
+        }
+    }, [fetchReminders, isLoading, reminders.length])
 
     // 过滤掉已关闭的提醒(检查过期时间)
     const now = Date.now()
@@ -67,7 +83,6 @@ function ReminderTilesPanel() {
     if (!isLoading && visibleReminders.length === 0) {
         return null
     }
-
     return (
         <div className="w-full max-w-[760px] mx-auto mt-12 px-2 animate-fade-in-up max-h-[600px] overflow-y-auto scrollbar-thin">
             <div className="flex items-center gap-2 mb-4 px-2 text-gray-500 sticky top-0 bg-white z-10 pb-2">

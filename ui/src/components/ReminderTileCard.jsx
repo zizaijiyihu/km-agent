@@ -11,6 +11,7 @@ import useStore from '../store/useStore'
  */
 function ReminderTileCard({ reminder, onClose, canAnalyze }) {
     const [status, setStatus] = useState('waiting') // waiting, loading, done, error
+    const [isCacheChecked, setIsCacheChecked] = useState(false)
     const [content, setContent] = useState('')
     const abortControllerRef = useRef(null)
 
@@ -30,15 +31,17 @@ function ReminderTileCard({ reminder, onClose, canAnalyze }) {
 
     // 监听是否可以开始分析
     useEffect(() => {
+        if (!isCacheChecked) return
         if (canAnalyze && status === 'waiting') {
             console.log('🚀 获得许可，开始分析:', reminder.id)
             startAnalysis()
         }
-    }, [canAnalyze, status])
+    }, [canAnalyze, status, isCacheChecked])
 
     const loadAnalysis = async () => {
         setStatus('waiting')
         setContent('')
+        setIsCacheChecked(false)
 
         // 1. 先尝试从 IndexedDB 获取缓存
         const cachedAnalysis = await getReminderAnalysis(reminder.id)
@@ -47,10 +50,10 @@ function ReminderTileCard({ reminder, onClose, canAnalyze }) {
             setContent(cachedAnalysis)
             setStatus('done')
             markAnalyzed(reminder.id)
-            return
         }
 
-        // 2. 缓存未命中，保持 waiting 状态，等待父组件授权
+        // 2. 无缓存则保持 waiting 状态，等待父组件授权
+        setIsCacheChecked(true)
         console.log('⏳ 等待分析授权:', reminder.id)
     }
 
