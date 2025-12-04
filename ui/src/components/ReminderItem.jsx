@@ -139,13 +139,13 @@ function ReminderItem({ reminder }) {
                             <button
                                 onClick={async () => {
                                     const newIsPublic = !reminder.is_public
-                                    const currentUserId = 'current_user' // TODO: 从实际登录状态获取
 
                                     try {
-                                        await updateReminder(reminder.id, null, newIsPublic, currentUserId)
+                                        // 后端会自动使用 get_current_user() 获取当前用户
+                                        await updateReminder(reminder.id, null, newIsPublic)
                                         updateReminderInList(reminder.id, {
                                             is_public: newIsPublic ? 1 : 0,
-                                            user_id: newIsPublic ? null : currentUserId
+                                            user_id: newIsPublic ? null : 'huxiaoxiao' // 前端显示用
                                         })
                                     } catch (error) {
                                         console.error('Failed to toggle reminder visibility:', error)

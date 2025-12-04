@@ -7,6 +7,7 @@ Reminders API Routes - 提醒管理接口
 import logging
 from flask import Blueprint, request, jsonify
 from reminder_repository import db as reminder_repository
+from ks_infrastructure import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,7 @@ def get_reminders():
     """
     获取提醒列表
     
-    Query Parameters:
-        user_id: 用户ID（可选，如果提供则返回所有公开提醒+该用户的私有提醒）
+    自动使用当前登录用户过滤，返回所有公开提醒+该用户的私有提醒
     
     Returns:
         {
@@ -37,8 +37,9 @@ def get_reminders():
         }
     """
     try:
-        user_id = request.args.get('user_id')
-        reminders = reminder_repository.get_all_reminders(user_id=user_id)
+        # 自动获取当前用户
+        current_user = get_current_user()
+        reminders = reminder_repository.get_all_reminders(user_id=current_user)
         return jsonify({
             'success': True,
             'data': reminders
@@ -59,8 +60,7 @@ def create_reminder():
     Request Body:
         {
             "content": "今天谁比较辛苦",
-            "is_public": true,  // 可选，默认true
-            "user_id": "user123"  // 可选，私有提醒时必填
+            "is_public": true  // 可选，默认true
         }
     
     Returns:
@@ -79,12 +79,14 @@ def create_reminder():
             }), 400
         
         is_public = data.get('is_public', True)
-        user_id = data.get('user_id')
+        
+        # 自动获取当前用户（私有提醒时使用）
+        current_user = get_current_user() if not is_public else None
         
         result = reminder_repository.create_reminder(
             content=data['content'],
             is_public=is_public,
-            user_id=user_id
+            user_id=current_user
         )
         
         return jsonify(result), 201
@@ -145,8 +147,7 @@ def update_reminder(reminder_id):
     Request Body:
         {
             "content": "最近有什么AI新闻",  // 可选
-            "is_public": false,  // 可选
-            "user_id": "user123"  // 可选，切换为私有时必填
+            "is_public": false  // 可选
         }
     
     Returns:
@@ -166,13 +167,15 @@ def update_reminder(reminder_id):
         
         content = data.get('content')
         is_public = data.get('is_public')
-        user_id = data.get('user_id')
+        
+        # 自动获取当前用户（切换为私有时使用）
+        current_user = get_current_user() if is_public is False else None
         
         result = reminder_repository.update_reminder(
             reminder_id=reminder_id,
             content=content,
             is_public=is_public,
-            user_id=user_id
+            user_id=current_user
         )
         
         return jsonify(result)
