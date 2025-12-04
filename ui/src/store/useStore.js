@@ -73,7 +73,10 @@ const useStore = create(
       isConversationSidebarOpen: false,
       isPdfViewerOpen: false,
       currentPdf: null, // { filename, owner, pageNumber }
+      isExcelViewerOpen: false,
+      currentExcel: null, // { filename, owner, rowNumber, sheetName }
       pdfOpenedFromKnowledge: false, // 标记PDF是否从知识文档列表打开
+      excelOpenedFromKnowledge: false, // 标记Excel是否从知识文档列表打开
 
       // 会话相关状态
       conversations: [],
@@ -361,6 +364,8 @@ const useStore = create(
       openPdfViewer: (pdfInfo, fromKnowledge = false) => set({
         isPdfViewerOpen: true,
         currentPdf: pdfInfo,
+        isExcelViewerOpen: false,
+        currentExcel: null,
         pdfOpenedFromKnowledge: fromKnowledge,
         // 如果从知识文档列表打开，先关闭知识文档列表
         isKnowledgeSidebarOpen: fromKnowledge ? false : get().isKnowledgeSidebarOpen
@@ -376,6 +381,27 @@ const useStore = create(
 
       setPdfPage: (pageNumber) => set((state) => ({
         currentPdf: state.currentPdf ? { ...state.currentPdf, pageNumber } : null
+      })),
+
+      // Actions - Excel浏览器
+      openExcelViewer: (excelInfo, fromKnowledge = false) => set({
+        isExcelViewerOpen: true,
+        currentExcel: excelInfo,
+        isPdfViewerOpen: false,
+        currentPdf: null,
+        excelOpenedFromKnowledge: fromKnowledge,
+        isKnowledgeSidebarOpen: fromKnowledge ? false : get().isKnowledgeSidebarOpen
+      }),
+
+      closeExcelViewer: () => set((state) => ({
+        isExcelViewerOpen: false,
+        currentExcel: null,
+        isKnowledgeSidebarOpen: state.excelOpenedFromKnowledge ? true : state.isKnowledgeSidebarOpen,
+        excelOpenedFromKnowledge: false
+      })),
+
+      setExcelRow: (rowNumber) => set((state) => ({
+        currentExcel: state.currentExcel ? { ...state.currentExcel, rowNumber } : null
       })),
 
       // Actions - 轮播

@@ -6,6 +6,7 @@ function DocumentItem({ document }) {
   const removeDocument = useStore(state => state.removeDocument)
   const updateDocumentVisibility = useStore(state => state.updateDocumentVisibility)
   const openPdfViewer = useStore(state => state.openPdfViewer)
+  const openExcelViewer = useStore(state => state.openExcelViewer)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   const isPublic = document.is_public === 1
@@ -47,17 +48,22 @@ function DocumentItem({ document }) {
   }
 
   const handleClick = () => {
-    // 只有 PDF 文件才打开预览器
+    const baseInfo = {
+      filename: document.filename,
+      owner: document.owner
+    }
+
+    // 根据文件类型打开对应的预览器
     if (fileInfo.type === 'PDF') {
       openPdfViewer({
-        filename: document.filename,
-        owner: document.owner,
+        ...baseInfo,
         pageNumber: 1
       }, true) // true 表示从知识文档列表打开
-    } else {
-      // Excel 等其他文件类型暂不支持预览，可以添加提示
-      // 未来可以扩展为下载或其他操作
-      console.log('Excel file clicked:', document.filename)
+    } else if (fileInfo.type === 'Excel') {
+      openExcelViewer({
+        ...baseInfo,
+        rowNumber: 1
+      }, true)
     }
   }
 

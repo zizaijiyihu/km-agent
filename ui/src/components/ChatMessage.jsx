@@ -5,11 +5,22 @@ import useStore from '../store/useStore'
 
 function ChatMessage({ message }) {
   const openPdfViewer = useStore(state => state.openPdfViewer)
+  const openExcelViewer = useStore(state => state.openExcelViewer)
 
   const isUser = message.role === 'user'
 
-  const handleDocumentClick = (filename, pageNumber) => {
-    openPdfViewer({ filename, pageNumber })
+  const handleDocumentClick = (payload) => {
+    if (payload.type === 'excel') {
+      openExcelViewer({
+        filename: payload.filename,
+        rowNumber: payload.rowNumber || 1
+      })
+    } else {
+      openPdfViewer({
+        filename: payload.filename,
+        pageNumber: payload.pageNumber || 1
+      })
+    }
   }
 
   // 自定义渲染组件
@@ -17,21 +28,41 @@ function ChatMessage({ message }) {
     // 自定义链接渲染 - 识别 http://pdf/文档.pdf:页码 格式
     a: ({ node, children, href, ...props }) => {
       // 匹配 http://pdf/文档名.pdf:页码 格式
-      const match = href?.match(/^http:\/\/pdf\/(.+\.pdf):(\d+)$/)
-      if (match) {
+      const pdfMatch = href?.match(/^http:\/\/pdf\/(.+\.pdf):(\d+)$/)
+      if (pdfMatch) {
         // 解码文件名（因为ReactMarkdown可能已经对href进行了URL编码）
-        const filename = decodeURIComponent(match[1])
-        const pageNumber = parseInt(match[2], 10)
+        const filename = decodeURIComponent(pdfMatch[1])
+        const pageNumber = parseInt(pdfMatch[2], 10)
         return (
           <button
             onClick={(e) => {
               e.preventDefault()
-              handleDocumentClick(filename, pageNumber)
+              handleDocumentClick({ type: 'pdf', filename, pageNumber })
             }}
             className="inline-flex items-center gap-1 text-primary hover:text-primary/80 hover:underline transition-colors cursor-pointer"
             title={`查看 ${filename} 第 ${pageNumber} 页`}
           >
             <i className="fa fa-file-pdf-o" aria-hidden="true"></i>
+            <span>{children}</span>
+          </button>
+        )
+      }
+
+      // 匹配 http://excel/文档名.xlsx:行号 格式
+      const excelMatch = href?.match(/^http:\/\/excel\/(.+\.(?:xlsx|xls)):(\d+)$/)
+      if (excelMatch) {
+        const filename = decodeURIComponent(excelMatch[1])
+        const rowNumber = parseInt(excelMatch[2], 10)
+        return (
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              handleDocumentClick({ type: 'excel', filename, rowNumber })
+            }}
+            className="inline-flex items-center gap-1 text-green-600 hover:text-green-700 hover:underline transition-colors cursor-pointer"
+            title={`查看 ${filename} 第 ${rowNumber} 行`}
+          >
+            <i className="fa fa-file-excel-o" aria-hidden="true"></i>
             <span>{children}</span>
           </button>
         )

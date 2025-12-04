@@ -418,12 +418,12 @@ def update_visibility(filename):
 @documents_bp.route('/api/documents/<filename>/content', methods=['GET'])
 def get_document_content(filename):
     """
-    Get PDF file content for viewing
+    Get document file content for viewing/downloading
 
     Note: User identification is handled server-side via get_current_user()
 
     Returns:
-        PDF file content or 404 if not found
+        文件内容或 404 if not found
     """
     try:
         owner = get_current_user()
@@ -436,9 +436,16 @@ def get_document_content(filename):
         )
 
         if content:
+            file_ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+            content_type_map = {
+                'pdf': 'application/pdf',
+                'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'xls': 'application/vnd.ms-excel'
+            }
+            mime = content_type_map.get(file_ext, 'application/octet-stream')
             return send_file(
                 BytesIO(content),
-                mimetype='application/pdf',
+                mimetype=mime,
                 as_attachment=False,
                 download_name=filename
             )

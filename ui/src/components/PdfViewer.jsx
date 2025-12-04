@@ -95,10 +95,10 @@ function PdfViewer() {
 
   return (
     <div
-      className={`${isPdfViewerOpen ? 'w-[500px] border-l border-gray-200' : 'w-0'
+      className={`${isPdfViewerOpen ? 'w-[720px] border-l border-gray-200' : 'w-0'
         } overflow-hidden transition-all duration-300 bg-white h-screen`}
     >
-      <div className="w-[500px] h-full flex flex-col bg-white">
+      <div className="w-[720px] h-full flex flex-col bg-white">
         {/* 头部工具栏 */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex-1 min-w-0">
@@ -144,7 +144,7 @@ function PdfViewer() {
                 pageNumber={pageNumber}
                 renderTextLayer={true}
                 renderAnnotationLayer={true}
-                width={470}
+                width={680}
                 className="shadow-lg"
               />
             </Document>

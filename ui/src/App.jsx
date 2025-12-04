@@ -6,6 +6,7 @@ import KnowledgeSidebar from './components/KnowledgeSidebar'
 import InstructionSidebar from './components/InstructionSidebar'
 import ReminderSidebar from './components/ReminderSidebar'
 import PdfViewer from './components/PdfViewer'
+import ExcelViewer from './components/ExcelViewer'
 import ConversationSidebar from './components/ConversationSidebar'
 import ReminderAnalysisPanel from './components/ReminderAnalysisPanel'
 
@@ -52,6 +53,8 @@ function App() {
 
         {/* PDF浏览器 */}
         <PdfViewer />
+        {/* Excel浏览器 */}
+        <ExcelViewer />
       </div>
     </div>
   )

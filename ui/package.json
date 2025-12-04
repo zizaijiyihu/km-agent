@@ -17,6 +17,7 @@
     "react-pdf": "^7.6.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
+    "xlsx": "^0.18.5",
     "zustand": "^4.4.7"
   },
   "devDependencies": {

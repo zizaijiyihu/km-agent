@@ -2,8 +2,15 @@ import React, { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { sendChatMessage } from '../services/api'
-import { getReminderAnalysis, setReminderAnalysis } from '../services/indexedDBCache'
 import useStore from '../store/useStore'
+
+let cacheModulePromise = null
+const getCacheModule = () => {
+    if (!cacheModulePromise) {
+        cacheModulePromise = import('../services/indexedDBCache')
+    }
+    return cacheModulePromise
+}
 
 function ReminderAnalysisCard({ reminder, onClose }) {
     const [status, setStatus] = useState('loading') // loading, done, error
@@ -28,6 +35,7 @@ function ReminderAnalysisCard({ reminder, onClose }) {
         setContent('')
 
         // 1. 先尝试从 IndexedDB 获取缓存
+        const { getReminderAnalysis } = await getCacheModule()
         const cachedAnalysis = await getReminderAnalysis(reminder.id)
         if (cachedAnalysis) {
             console.log('使用缓存的提醒分析:', reminder.id)
@@ -82,6 +90,7 @@ function ReminderAnalysisCard({ reminder, onClose }) {
                 }, 300)
             } else {
                 // 分析成功,保存到 IndexedDB
+                const { setReminderAnalysis } = await getCacheModule()
                 await setReminderAnalysis(reminder.id, streamingContent)
                 setStatus('done')
                 markAnalyzed(reminder.id)
