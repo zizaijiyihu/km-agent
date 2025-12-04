@@ -14,7 +14,7 @@
 #### 表结构更新
 ```sql
 ALTER TABLE agent_reminders 
-ADD COLUMN is_public TINYINT DEFAULT 1 COMMENT '是否公开: 1=公开, 0=私有',
+ADD COLUMN is_public TINYINT DEFAULT 0 COMMENT '是否公开: 1=公开, 0=私有',
 ADD COLUMN user_id VARCHAR(255) DEFAULT NULL COMMENT '用户ID（私有提醒时使用）',
 ADD INDEX idx_user_id (user_id),
 ADD INDEX idx_is_public (is_public);
@@ -22,7 +22,7 @@ ADD INDEX idx_is_public (is_public);
 
 #### 核心函数更新
 
-**create_reminder(content, is_public=True, user_id=None)**
+**create_reminder(content, is_public=False, user_id=None)**
 - 添加 `is_public` 和 `user_id` 参数
 - 验证私有提醒必须指定 `user_id`
 - 检查数量限制：
@@ -34,6 +34,7 @@ ADD INDEX idx_is_public (is_public);
 - 查询逻辑：
   - 无 `user_id`: 只返回公开提醒
   - 有 `user_id`: 返回所有公开提醒 + 该用户的私有提醒
+- 结果按 `sort_order ASC, created_at DESC` 排序
 
 **update_reminder(reminder_id, content=None, is_public=None, user_id=None)**
 - 支持更新 `content`, `is_public`, `user_id`
@@ -56,6 +57,7 @@ user_id: str (可选)
       "content": "提醒内容",
       "is_public": 1,
       "user_id": null,
+      "sort_order": 1,
       "created_at": "2025-12-04 11:00:00",
       "updated_at": "2025-12-04 11:00:00"
     }
@@ -68,7 +70,7 @@ user_id: str (可选)
 # Request Body
 {
   "content": "提醒内容",
-  "is_public": true,  # 可选，默认true
+  "is_public": false,  # 可选，默认false=私有
   "user_id": "user123"  # 可选，私有提醒时必填
 }
 
@@ -94,6 +96,7 @@ user_id: str (可选)
   "message": "提醒更新成功"
 }
 ```
+
 
 ### 3. 前端层
 
@@ -208,7 +211,8 @@ curl -X PUT http://localhost:8080/api/reminders/1 \
    - 公开提醒全局最多10个
    - 私有提醒每个用户最多5个
 3. **权限控制**: 当前未实现权限验证，任何用户都可以修改任何提醒
-4. **数据库迁移**: 现有表会自动添加新字段，默认所有提醒为公开
+4. **数据库迁移**: 现有表会自动添加新字段，默认改为私有
+5. **排序存储**: 前端拖拽排序仅在本地 IndexedDB 生效，不依赖后端排序接口
 
 ## 后续优化建议
 

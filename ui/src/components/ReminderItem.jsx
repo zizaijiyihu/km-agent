@@ -4,7 +4,15 @@ import remarkGfm from 'remark-gfm'
 import { updateReminder, deleteReminder } from '../services/api'
 import useStore from '../store/useStore'
 
-function ReminderItem({ reminder }) {
+function ReminderItem({
+    reminder,
+    draggable = false,
+    onDragStart,
+    onDragOver,
+    onDrop,
+    onDragEnd,
+    isDragOver = false
+}) {
     const [isEditing, setIsEditing] = useState(false)
     const [editContent, setEditContent] = useState(reminder.content)
     const [isSaving, setIsSaving] = useState(false)
@@ -58,7 +66,14 @@ function ReminderItem({ reminder }) {
     }
 
     return (
-        <div className="bg-transparent border border-gray-100 rounded-lg p-4 hover:bg-gray-50/50 transition-all group">
+        <div
+            className={`bg-transparent border border-gray-100 rounded-lg p-4 hover:bg-gray-50/50 transition-all group ${isDragOver ? 'ring-2 ring-primary/50 border-primary/30' : ''}`}
+            draggable={draggable}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+            onDragEnd={onDragEnd}
+        >
             {isEditing ? (
                 <div className="space-y-3">
                     <textarea
@@ -141,11 +156,9 @@ function ReminderItem({ reminder }) {
                                     const newIsPublic = !reminder.is_public
 
                                     try {
-                                        // 后端会自动使用 get_current_user() 获取当前用户
                                         await updateReminder(reminder.id, null, newIsPublic)
                                         updateReminderInList(reminder.id, {
-                                            is_public: newIsPublic ? 1 : 0,
-                                            user_id: newIsPublic ? null : 'huxiaoxiao' // 前端显示用
+                                            is_public: newIsPublic ? 1 : 0
                                         })
                                     } catch (error) {
                                         console.error('Failed to toggle reminder visibility:', error)

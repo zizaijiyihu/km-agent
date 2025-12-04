@@ -60,7 +60,7 @@ def create_reminder():
     Request Body:
         {
             "content": "今天谁比较辛苦",
-            "is_public": true  // 可选，默认true
+            "is_public": false  // 可选，默认false=私有
         }
     
     Returns:
@@ -78,7 +78,7 @@ def create_reminder():
                 'error': '缺少必需参数: content'
             }), 400
         
-        is_public = data.get('is_public', True)
+        is_public = data.get('is_public', False)
         
         # 自动获取当前用户（私有提醒时使用）
         current_user = get_current_user() if not is_public else None

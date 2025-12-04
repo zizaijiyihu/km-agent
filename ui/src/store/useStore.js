@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { getReminders } from '../services/api'
+import { applyReminderOrder } from '../services/reminderOrderCache'
 
 // Fisher-Yates 洗牌算法
 const shuffleArray = (array) => {
@@ -137,7 +138,7 @@ const useStore = create(
         set({ isRemindersLoading: true })
         try {
           const response = await getReminders()
-          const reminders = response.data || []
+          const reminders = await applyReminderOrder(response.data || [])
           set({
             reminders,
             isRemindersLoading: false
@@ -180,6 +181,21 @@ const useStore = create(
           reminder.id === id ? { ...reminder, ...data } : reminder
         )
       })),
+
+      reorderReminders: (sourceId, targetId) => set((state) => {
+        const items = [...state.reminders]
+        const fromIndex = items.findIndex(r => r.id === sourceId)
+        const toIndex = items.findIndex(r => r.id === targetId)
+
+        if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+          return {}
+        }
+
+        const [moved] = items.splice(fromIndex, 1)
+        items.splice(toIndex, 0, moved)
+
+        return { reminders: items }
+      }),
 
       removeReminder: (id) => set((state) => ({
         reminders: state.reminders.filter(reminder => reminder.id !== id)

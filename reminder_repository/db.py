@@ -2,7 +2,7 @@
 Reminder Repository - 数据库操作模块
 
 提供agent_reminders表的CRUD操作，使用统一的db_session管理器
-提醒不属于任何用户，是全局可见的自然语言提示
+支持公开/私有提醒，默认创建私有提醒
 """
 
 import logging
@@ -23,7 +23,7 @@ def _ensure_table_exists():
     CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
         id INT AUTO_INCREMENT PRIMARY KEY,
         content TEXT NOT NULL,
-        is_public TINYINT DEFAULT 1 COMMENT '是否公开: 1=公开, 0=私有',
+        is_public TINYINT DEFAULT 0 COMMENT '是否公开: 1=公开, 0=私有',
         user_id VARCHAR(255) DEFAULT NULL COMMENT '用户ID（私有提醒时使用）',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -39,10 +39,11 @@ def _ensure_table_exists():
             # Add columns if they don't exist (for existing tables)
             # MySQL doesn't support IF NOT EXISTS for ALTER TABLE ADD COLUMN
             alter_sqls = [
-                f"ALTER TABLE {TABLE_NAME} ADD COLUMN is_public TINYINT DEFAULT 1 COMMENT '是否公开: 1=公开, 0=私有'",
+                f"ALTER TABLE {TABLE_NAME} ADD COLUMN is_public TINYINT DEFAULT 0 COMMENT '是否公开: 1=公开, 0=私有'",
                 f"ALTER TABLE {TABLE_NAME} ADD COLUMN user_id VARCHAR(255) DEFAULT NULL COMMENT '用户ID（私有提醒时使用）'",
                 f"ALTER TABLE {TABLE_NAME} ADD INDEX idx_user_id (user_id)",
-                f"ALTER TABLE {TABLE_NAME} ADD INDEX idx_is_public (is_public)"
+                f"ALTER TABLE {TABLE_NAME} ADD INDEX idx_is_public (is_public)",
+                f"ALTER TABLE {TABLE_NAME} MODIFY COLUMN is_public TINYINT DEFAULT 0 COMMENT '是否公开: 1=公开, 0=私有'"
             ]
             
             for alter_sql in alter_sqls:
@@ -63,13 +64,13 @@ def _ensure_table_exists():
         raise KsConnectionError(f"创建表失败: {e}")
 
 
-def create_reminder(content: str, is_public: bool = True, user_id: Optional[str] = None) -> dict:
+def create_reminder(content: str, is_public: bool = False, user_id: Optional[str] = None) -> dict:
     """
     创建新提醒
     
     Args:
         content: 提醒内容（自然语言）
-        is_public: 是否公开（默认True）
+        is_public: 是否公开（默认False=私有）
         user_id: 用户ID（私有提醒时必填）
     
     Returns:
@@ -304,7 +305,7 @@ def update_reminder(reminder_id: int, content: Optional[str] = None, is_public: 
             elif is_public is True:
                 # 切换为公开时清空user_id
                 update_fields.append("user_id = NULL")
-            
+
             if not update_fields:
                 raise ValueError("没有需要更新的字段")
             

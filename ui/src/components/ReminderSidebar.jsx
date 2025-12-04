@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import useStore from '../store/useStore'
 import { getReminders, createReminder } from '../services/api'
+import { applyReminderOrder, setReminderOrder } from '../services/reminderOrderCache'
 import ReminderItem from './ReminderItem'
 
 function ReminderSidebar() {
@@ -9,6 +10,7 @@ function ReminderSidebar() {
     const reminders = useStore(state => state.reminders)
     const setReminders = useStore(state => state.setReminders)
     const addReminder = useStore(state => state.addReminder)
+    const reorderReminders = useStore(state => state.reorderReminders)
 
     const [isCreating, setIsCreating] = useState(false)
     const [newContent, setNewContent] = useState('')
@@ -18,6 +20,9 @@ function ReminderSidebar() {
     const [page, setPage] = useState(1)
     const [hasMore, setHasMore] = useState(true)
     const PAGE_SIZE = 20
+    const [draggingId, setDraggingId] = useState(null)
+    const [dragOverId, setDragOverId] = useState(null)
+    const [isSavingOrder, setIsSavingOrder] = useState(false)
 
     // 加载提醒列表
     useEffect(() => {
@@ -33,10 +38,11 @@ function ReminderSidebar() {
         try {
             const currentPage = isLoadMore ? page : 1
             const response = await getReminders(currentPage, PAGE_SIZE)
-            const newReminders = response.data || []
+            let newReminders = response.data || []
+            newReminders = await applyReminderOrder(newReminders)
 
             if (isLoadMore) {
-                setReminders([...reminders, ...newReminders])
+                setReminders(newReminders)
             } else {
                 setReminders(newReminders)
             }
@@ -61,9 +67,14 @@ function ReminderSidebar() {
                     id: result.reminder_id,
                     content: newContent,
                     created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
+                    updated_at: new Date().toISOString(),
+                    is_public: 0,
+                    sort_order: result.sort_order ?? reminders.length + 1
                 }
-                addReminder(newReminder)
+                // 新建的默认追加到末尾以保持与后端一致
+                const updated = [...reminders, newReminder]
+                setReminders(updated)
+                setReminderOrder(updated.map(r => r.id))
                 setNewContent('')
                 setIsCreating(false)
             }
@@ -134,6 +145,7 @@ function ReminderSidebar() {
                             <span>新建提醒</span>
                         </button>
                     )}
+                    <p className="mt-3 text-xs text-gray-500">私有提醒每个用户最多5个，默认为私有。</p>
                 </div>
 
                 {/* 提醒列表 */}
@@ -154,7 +166,59 @@ function ReminderSidebar() {
                     ) : (
                         <>
                             {reminders.map((reminder) => (
-                                <ReminderItem key={reminder.id} reminder={reminder} />
+                                <ReminderItem
+                                    key={reminder.id}
+                                    reminder={reminder}
+                                    draggable
+                                    isDragOver={dragOverId === reminder.id}
+                                    onDragStart={(e) => {
+                                        e.dataTransfer.effectAllowed = 'move'
+                                        e.dataTransfer.setData('text/plain', String(reminder.id))
+                                        setDraggingId(reminder.id)
+                                    }}
+                                    onDragOver={(e) => {
+                                        e.preventDefault()
+                                        e.dataTransfer.dropEffect = 'move'
+                                        if (dragOverId !== reminder.id) {
+                                            setDragOverId(reminder.id)
+                                        }
+                                    }}
+                                    onDrop={(e) => {
+                                        e.preventDefault()
+                                        if (!draggingId || draggingId === reminder.id || isSavingOrder) {
+                                            setDragOverId(null)
+                                            setDraggingId(null)
+                                            return
+                                        }
+
+                                        const items = [...reminders]
+                                        const fromIndex = items.findIndex(r => r.id === draggingId)
+                                        const toIndex = items.findIndex(r => r.id === reminder.id)
+                                        if (fromIndex === -1 || toIndex === -1) {
+                                            setDragOverId(null)
+                                            setDraggingId(null)
+                                            return
+                                        }
+                                        const [moved] = items.splice(fromIndex, 1)
+                                        items.splice(toIndex, 0, moved)
+
+                                        setReminders(items)
+                                        setIsSavingOrder(true)
+                                        setReminderOrder(items.map(r => r.id))
+                                            .catch((error) => {
+                                                console.error('Failed to save local order:', error)
+                                                alert('保存排序失败: ' + error.message)
+                                            })
+                                            .finally(() => setIsSavingOrder(false))
+
+                                        setDragOverId(null)
+                                        setDraggingId(null)
+                                    }}
+                                    onDragEnd={() => {
+                                        setDragOverId(null)
+                                        setDraggingId(null)
+                                    }}
+                                />
                             ))}
 
                             {isLoading && (

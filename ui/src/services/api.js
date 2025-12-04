@@ -592,10 +592,11 @@ export async function getReminders() {
 /**
  * 创建新提醒
  * @param {string} content - 提醒内容
+ * @param {boolean} isPublic - 是否公开（默认私有）
  * @returns {Promise<Object>} 创建结果
  */
-export async function createReminder(content) {
-  const body = { content }
+export async function createReminder(content, isPublic = false) {
+  const body = { content, is_public: isPublic }
   const response = await fetch(`${API_BASE_URL}/reminders`, {
     method: 'POST',
     headers: {
@@ -653,6 +654,28 @@ export async function deleteReminder(id) {
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.error || 'Failed to delete reminder')
+  }
+
+  return response.json()
+}
+
+/**
+ * 重新排序提醒
+ * @param {number[]} ids - 按顺序排列的提醒ID
+ * @returns {Promise<Object>} 更新结果
+ */
+export async function reorderReminders(ids) {
+  const response = await fetch(`${API_BASE_URL}/reminders/reorder`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ ids })
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to reorder reminders')
   }
 
   return response.json()
