@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from ks_infrastructure import get_current_user
+from ks_infrastructure import get_current_user, is_admin
 from quote_repository.db import (
     create_quote,
     get_quotes,
@@ -31,6 +31,9 @@ def create_new_quote():
     try:
         # Ensure user is logged in
         get_current_user()
+
+        if not is_admin():
+            return jsonify({"success": False, "error": "ADMIN_REQUIRED"}), 403
         
         data = request.json
         content = data.get('content')
@@ -100,6 +103,9 @@ def update_existing_quote(quote_id):
     try:
         # Ensure user is logged in
         get_current_user()
+
+        if not is_admin():
+            return jsonify({"success": False, "error": "ADMIN_REQUIRED"}), 403
         
         data = request.json
         content = data.get('content')
@@ -128,6 +134,9 @@ def delete_existing_quote(quote_id):
     try:
         # Ensure user is logged in
         get_current_user()
+
+        if not is_admin():
+            return jsonify({"success": False, "error": "ADMIN_REQUIRED"}), 403
         
         result = delete_quote(quote_id)
         return jsonify(result)

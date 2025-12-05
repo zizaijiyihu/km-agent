@@ -7,7 +7,7 @@ Reminders API Routes - 提醒管理接口
 import logging
 from flask import Blueprint, request, jsonify
 from reminder_repository import db as reminder_repository
-from ks_infrastructure import get_current_user
+from ks_infrastructure import get_current_user, is_admin
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,11 @@ def create_reminder():
             }), 400
         
         is_public = data.get('is_public', False)
+        if is_public and not is_admin():
+            return jsonify({
+                'success': False,
+                'error': 'ADMIN_REQUIRED'
+            }), 403
         
         # 自动获取当前用户（私有提醒时使用）
         current_user = get_current_user() if not is_public else None
@@ -167,6 +172,11 @@ def update_reminder(reminder_id):
         
         content = data.get('content')
         is_public = data.get('is_public')
+        if is_public and not is_admin():
+            return jsonify({
+                'success': False,
+                'error': 'ADMIN_REQUIRED'
+            }), 403
         
         # 自动获取当前用户（切换为私有时使用）
         current_user = get_current_user() if is_public is False else None

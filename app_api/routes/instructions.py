@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from ks_infrastructure import get_current_user
+from ks_infrastructure import get_current_user, is_admin
 from instruction_repository import (
     create_instruction,
     get_all_instructions,
@@ -36,13 +36,17 @@ def create_user_instruction():
 
         content = data.get('content')
         priority = data.get('priority', 0)
+        is_public = bool(data.get('is_public', False))
+
+        if is_public and not is_admin():
+            return jsonify({"success": False, "error": "ADMIN_REQUIRED"}), 403
         
         if not content:
             return jsonify({"success": False, "error": "content参数不能为空"}), 400
         
-        result = create_instruction(owner, content, priority)
+        result = create_instruction(owner, content, priority, is_public)
         result['message'] = "指示创建成功"
-        return jsonify(result)
+        return jsonify(result), 201
         
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
@@ -74,6 +78,8 @@ def get_user_instructions():
         print(f"[DEBUG] Getting instructions for owner: {owner}", flush=True)
         
         instructions = get_all_instructions(owner, include_inactive)
+        for item in instructions:
+            item['is_editable'] = (item.get('owner') == owner)
         return jsonify({
             "success": True,
             "instructions": instructions
@@ -108,6 +114,7 @@ def get_instruction_detail(instruction_id):
         owner = get_current_user()
         
         instruction = get_instruction_by_id(instruction_id, owner)
+        instruction['is_editable'] = (instruction.get('owner') == owner)
         return jsonify({
             "success": True,
             "instruction": instruction
@@ -145,8 +152,14 @@ def update_user_instruction(instruction_id):
         content = data.get('content')
         is_active = data.get('is_active')
         priority = data.get('priority')
+        is_public = data.get('is_public')
+        if is_public is not None:
+            is_public = bool(is_public)
+
+        if is_public and not is_admin():
+            return jsonify({"success": False, "error": "ADMIN_REQUIRED"}), 403
         
-        update_instruction(instruction_id, owner, content, is_active, priority)
+        update_instruction(instruction_id, owner, content, is_active, priority, is_public)
         
         return jsonify({
             "success": True,

@@ -10,9 +10,11 @@ function InstructionSidebar() {
     const setInstructions = useStore(state => state.setInstructions)
     const addInstruction = useStore(state => state.addInstruction)
     const clearMessages = useStore(state => state.clearMessages) // 清空对话历史
+    const isAdmin = useStore(state => state.isAdmin)
 
     const [isCreating, setIsCreating] = useState(false)
     const [newContent, setNewContent] = useState('')
+    const [newIsPublic, setNewIsPublic] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
     const [isLoading, setIsLoading] = useState(false)
@@ -34,7 +36,11 @@ function InstructionSidebar() {
         try {
             const currentPage = isLoadMore ? page : 1
             const response = await getInstructions(currentPage, PAGE_SIZE)
-            const newInstructions = response.instructions || []
+            const newInstructions = (response.instructions || []).map(inst => ({
+                ...inst,
+                is_public: inst.is_public ?? 0,
+                is_editable: inst.is_editable !== undefined ? inst.is_editable : true
+            }))
 
             if (isLoadMore) {
                 setInstructions([...instructions, ...newInstructions])
@@ -53,10 +59,14 @@ function InstructionSidebar() {
 
     const handleCreate = async () => {
         if (!newContent.trim() || isSaving) return
+        if (newIsPublic && !isAdmin) {
+            alert('仅管理员可创建公开指示')
+            return
+        }
 
         setIsSaving(true)
         try {
-            const result = await createInstruction(newContent)
+            const result = await createInstruction(newContent, 0, isAdmin && newIsPublic)
             if (result.success) {
                 // 重新加载列表或者直接添加到store
                 // 这里为了简单直接添加到store，实际应该用后端返回的完整对象
@@ -66,11 +76,14 @@ function InstructionSidebar() {
                     content: newContent,
                     is_active: 1,
                     priority: 0,
+                    is_public: newIsPublic && isAdmin ? 1 : 0,
+                    is_editable: true,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 }
                 addInstruction(newInstruction)
                 setNewContent('')
+                setNewIsPublic(false)
                 setIsCreating(false)
 
                 // 清空对话历史，避免旧的上下文污染
@@ -104,20 +117,45 @@ function InstructionSidebar() {
                 {/* 创建新指示 */}
                 <div className="mb-6">
                     {isCreating ? (
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                            <textarea
-                                value={newContent}
-                                onChange={(e) => setNewContent(e.target.value)}
-                                placeholder="请输入新的指示内容..."
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <textarea
+                        value={newContent}
+                        onChange={(e) => setNewContent(e.target.value)}
+                        placeholder="请输入新的指示内容..."
                                 className="w-full p-2 mb-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none resize-none bg-white"
                                 rows="3"
                                 autoFocus
                             />
+                            <div className="flex items-center justify-between mb-3 text-xs text-gray-600">
+                                <span className="flex items-center gap-2">
+                                    {newIsPublic ? (
+                                        <>
+                                            <i className="fa fa-globe text-green-500"></i>
+                                            <span>公开指示，所有人可见</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="fa fa-lock text-orange-500"></i>
+                                            <span>私有指示，仅自己可见</span>
+                                        </>
+                                    )}
+                                </span>
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => setNewIsPublic(!newIsPublic)}
+                                        className="flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                        type="button"
+                                    >
+                                        <span>{newIsPublic ? '切换为私有' : '切换为公开'}</span>
+                                    </button>
+                                )}
+                            </div>
                             <div className="flex justify-end gap-2">
                                 <button
                                     onClick={() => {
                                         setIsCreating(false)
                                         setNewContent('')
+                                        setNewIsPublic(false)
                                     }}
                                     className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
                                     disabled={isSaving}
@@ -143,6 +181,7 @@ function InstructionSidebar() {
                             <span>新建指示</span>
                         </button>
                     )}
+                    <p className="mt-3 text-xs text-gray-500">指示支持公开/私有，默认为私有，可在列表中随时切换。</p>
                 </div>
 
                 {/* 指示列表 */}

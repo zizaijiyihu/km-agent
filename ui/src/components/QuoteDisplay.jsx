@@ -18,6 +18,7 @@ function QuoteDisplay({ visible }) {
     const currentCarouselQuestion = useStore(state => state.currentCarouselQuestion)
     const initCarousel = useStore(state => state.initCarousel)
     const nextCarouselQuestion = useStore(state => state.nextCarouselQuestion)
+    const isAdmin = useStore(state => state.isAdmin)
 
     // Form state
     const [editingId, setEditingId] = useState(null)
@@ -118,6 +119,7 @@ function QuoteDisplay({ visible }) {
     }, [isModalOpen])
 
     const handleAdd = async () => {
+        if (!isAdmin) return
         if (!newContent.trim()) return
         try {
             await createQuote(newContent, 0)
@@ -131,6 +133,7 @@ function QuoteDisplay({ visible }) {
     }
 
     const handleUpdate = async (id) => {
+        if (!isAdmin) return
         if (!editContent.trim()) return
         try {
             await updateQuote(id, editContent, editIsFixed)
@@ -143,6 +146,7 @@ function QuoteDisplay({ visible }) {
     }
 
     const handleDelete = async (id) => {
+        if (!isAdmin) return
         try {
             await deleteQuote(id)
             setDeleteConfirmId(null)
@@ -154,6 +158,7 @@ function QuoteDisplay({ visible }) {
     }
 
     const handleToggleFixed = async (quote) => {
+        if (!isAdmin) return
         try {
             const newStatus = quote.is_fixed === 1 ? 0 : 1
             await updateQuote(quote.id, quote.content, newStatus)
@@ -202,17 +207,22 @@ function QuoteDisplay({ visible }) {
                 </div>
 
                 {/* Edit Icon */}
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-gray-400 hover:text-primary p-2"
-                    title="管理语录"
-                >
-                    <i className="fa fa-pencil" aria-hidden="true"></i>
-                </button>
+                {isAdmin && (
+                    <button
+                        onClick={() => {
+                            if (!isAdmin) return
+                            setIsModalOpen(true)
+                        }}
+                        className="absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-gray-400 hover:text-primary p-2"
+                        title="管理语录"
+                    >
+                        <i className="fa fa-pencil" aria-hidden="true"></i>
+                    </button>
+                )}
             </div>
 
             {/* Management Modal */}
-            {isModalOpen && (
+            {isAdmin && isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl w-[600px] max-h-[80vh] flex flex-col overflow-hidden">
                         {/* Header */}

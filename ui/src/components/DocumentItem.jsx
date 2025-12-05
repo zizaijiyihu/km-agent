@@ -7,6 +7,7 @@ function DocumentItem({ document }) {
   const updateDocumentVisibility = useStore(state => state.updateDocumentVisibility)
   const openPdfViewer = useStore(state => state.openPdfViewer)
   const openExcelViewer = useStore(state => state.openExcelViewer)
+  const isAdmin = useStore(state => state.isAdmin)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   const isPublic = document.is_public === 1
@@ -38,6 +39,10 @@ function DocumentItem({ document }) {
   const handleToggleVisibility = async (e) => {
     e.stopPropagation()
     const newIsPublic = isPublic ? 0 : 1
+    if (newIsPublic === 1 && !isAdmin) {
+      alert('仅管理员可设为公开')
+      return
+    }
     try {
       await updateDocVisibilityAPI(document.filename, newIsPublic)
       updateDocumentVisibility(document.filename, document.owner, newIsPublic)
@@ -90,16 +95,18 @@ function DocumentItem({ document }) {
               {document.page_count && ` · ${document.page_count}页`}
             </p>
           </div>
-          {/* 按钮组 - 总是显示，后端会验证权限 */}
-          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {/* 公开/私有切换按钮 */}
-            <button
-              onClick={handleToggleVisibility}
-              className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-primary hover:bg-primary/10 rounded-full transition-all"
-              title={isPublic ? '设为私有' : '设为公开'}
-            >
-              <i className={`fa ${isPublic ? 'fa-lock' : 'fa-globe'} text-sm`} aria-hidden="true"></i>
-            </button>
+          {/* 按钮组 */}
+          <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* 公开/私有切换按钮（仅管理员可见） */}
+            {isAdmin && (
+              <button
+                onClick={handleToggleVisibility}
+                className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-primary hover:bg-primary/10 rounded-full transition-all"
+                title={isPublic ? '设为私有' : '设为公开'}
+              >
+                <i className={`fa ${isPublic ? 'fa-lock' : 'fa-globe'} text-sm`} aria-hidden="true"></i>
+              </button>
+            )}
             {/* 删除按钮 */}
             <button
               onClick={(e) => {

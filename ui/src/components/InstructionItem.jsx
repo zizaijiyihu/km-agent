@@ -7,9 +7,12 @@ function InstructionItem({ instruction }) {
     const [editContent, setEditContent] = useState(instruction.content)
     const [isSaving, setIsSaving] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [isToggling, setIsToggling] = useState(false)
+    const canEdit = instruction.is_editable !== false
 
     const updateInstructionInList = useStore(state => state.updateInstructionInList)
     const removeInstruction = useStore(state => state.removeInstruction)
+    const isAdmin = useStore(state => state.isAdmin)
 
     const textareaRef = useRef(null)
 
@@ -22,7 +25,7 @@ function InstructionItem({ instruction }) {
     }, [isEditing])
 
     const handleSave = async () => {
-        if (!editContent.trim() || isSaving) return
+        if (!editContent.trim() || isSaving || !canEdit) return
 
         setIsSaving(true)
         try {
@@ -43,6 +46,7 @@ function InstructionItem({ instruction }) {
     }
 
     const handleDelete = async () => {
+        if (!canEdit) return
         if (!window.confirm('确定要删除这条指示吗？')) return
 
         setIsDeleting(true)
@@ -60,6 +64,26 @@ function InstructionItem({ instruction }) {
         setEditContent(e.target.value)
         e.target.style.height = 'auto'
         e.target.style.height = e.target.scrollHeight + 'px'
+    }
+
+    const handleToggleVisibility = async () => {
+        if (isToggling || !canEdit) return
+
+        const newIsPublic = !instruction.is_public
+        if (newIsPublic && !isAdmin) {
+            alert('仅管理员可设置公开')
+            return
+        }
+        setIsToggling(true)
+        try {
+            await updateInstruction(instruction.id, { is_public: newIsPublic })
+            updateInstructionInList(instruction.id, { is_public: newIsPublic ? 1 : 0 })
+        } catch (error) {
+            console.error('Failed to toggle instruction visibility:', error)
+            alert('切换失败: ' + error.message)
+        } finally {
+            setIsToggling(false)
+        }
     }
 
     return (
@@ -101,22 +125,47 @@ function InstructionItem({ instruction }) {
                         {instruction.content}
                     </div>
                     <div className="flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-xs text-gray-400">
-                            {new Date(instruction.created_at).toLocaleDateString()}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">
+                                {new Date(instruction.created_at).toLocaleDateString()}
+                            </span>
+                            {isAdmin && (
+                                <button
+                                    onClick={handleToggleVisibility}
+                                    className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-gray-100 transition-colors disabled:opacity-60"
+                                    title={instruction.is_public ? '公开 - 点击切换为私有' : '私有 - 点击切换为公开'}
+                                    disabled={isToggling || !canEdit}
+                                >
+                                    {isToggling ? (
+                                        <i className="fa fa-spinner fa-spin text-gray-400"></i>
+                                    ) : instruction.is_public ? (
+                                        <>
+                                            <i className="fa fa-globe text-green-500"></i>
+                                            <span className="text-green-600">公开</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="fa fa-lock text-orange-500"></i>
+                                            <span className="text-orange-600">私有</span>
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                        </div>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setIsEditing(true)}
-                                className="text-gray-400 hover:text-primary transition-colors"
-                                title="编辑"
+                                className="text-gray-400 hover:text-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                title={canEdit ? '编辑' : '仅创建者可编辑'}
+                                disabled={!canEdit}
                             >
                                 <i className="fa fa-pencil"></i>
                             </button>
                             <button
                                 onClick={handleDelete}
-                                className="text-gray-400 hover:text-red-500 transition-colors"
-                                title="删除"
-                                disabled={isDeleting}
+                                className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                title={canEdit ? '删除' : '仅创建者可删除'}
+                                disabled={isDeleting || !canEdit}
                             >
                                 {isDeleting ? (
                                     <i className="fa fa-spinner fa-spin"></i>

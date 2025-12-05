@@ -4,7 +4,7 @@ Agent用户自定义指示的存储和管理模块。
 
 ## 功能概述
 
-允许用户创建、编辑、删除自定义指示（≤200字），这些指示会自动加载到KMAgent的系统提示中，影响AI的回答风格和行为。
+允许用户创建、编辑、删除自定义指示（≤200字），支持公开/私有切换，这些指示会自动加载到KMAgent的系统提示中，影响AI的回答风格和行为。
 
 ## 核心功能
 
@@ -16,7 +16,8 @@ from instruction_repository import create_instruction
 result = create_instruction(
     owner="user123",
     content="回答要简洁明了，不要啰嗦",
-    priority=10
+    priority=10,
+    is_public=False  # 可选，默认私有
 )
 # Returns: {"success": True, "instruction_id": 1}
 ```
@@ -27,7 +28,7 @@ result = create_instruction(
 from instruction_repository import get_active_instructions
 
 instructions = get_active_instructions(owner="user123")
-# Returns: [{"id": 1, "content": "...", "priority": 10, "created_at": "..."}]
+# Returns: [{"id": 1, "content": "...", "priority": 10, "is_public": 0, "created_at": "..."}]
 ```
 
 ### 3. 获取所有指示
@@ -73,10 +74,12 @@ CREATE TABLE agent_instructions (
     content TEXT NOT NULL,
     is_active TINYINT DEFAULT 1,
     priority INT DEFAULT 0,
+    is_public TINYINT DEFAULT 0 COMMENT '是否公开: 1=公开, 0=私有',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_owner (owner),
-    INDEX idx_owner_active (owner, is_active)
+    INDEX idx_owner_active (owner, is_active),
+    INDEX idx_is_public (is_public)
 );
 ```
 
@@ -86,6 +89,7 @@ CREATE TABLE agent_instructions (
 - **content**: 指示内容，限制≤200字
 - **is_active**: 是否启用（1=启用，0=禁用）
 - **priority**: 优先级，数字越大越优先显示
+- **is_public**: 是否公开（1=公开，0=私有，默认私有）
 
 ## 安全特性
 
@@ -102,7 +106,8 @@ CREATE TABLE agent_instructions (
 create_instruction(
     owner="alice",
     content="每次回答都要简洁明了，控制在3句话以内",
-    priority=10
+    priority=10,
+    is_public=True  # 公开指示，所有用户可见
 )
 ```
 
@@ -130,8 +135,9 @@ update_instruction(
 
 1. **字数限制**: 指示内容必须≤400字符（中文按字符计数）
 2. **优先级**: 多条指示按priority降序排列，数字越大越优先
-3. **权限隔离**: 用户只能操作自己的指示
-4. **自动建表**: 首次使用时会自动创建表，无需手动初始化
+3. **权限隔离**: 用户只能操作自己的指示，公开指示对所有用户可见
+4. **默认私有**: 不传 is_public 时默认为私有，可随时切换公开/私有
+5. **自动建表**: 首次使用时会自动创建表，无需手动初始化
 
 ## 测试
 

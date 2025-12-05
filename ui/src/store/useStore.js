@@ -24,6 +24,7 @@ const useStore = create(
       messages: [],
       chatHistory: [],
       isLoading: false,
+      isAdmin: false,
 
       // 文档相关状态
       documents: [],
@@ -104,6 +105,8 @@ const useStore = create(
       setChatHistory: (history) => set({ chatHistory: history }),
 
       setIsLoading: (loading) => set({ isLoading: loading }),
+
+      setIsAdmin: (isAdmin) => set({ isAdmin }),
 
       clearMessages: () => set({ messages: [], chatHistory: [] }),
 

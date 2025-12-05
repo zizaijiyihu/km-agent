@@ -1,5 +1,14 @@
 const API_BASE_URL = '/api'
 
+export async function getAdminStatus() {
+  const response = await fetch(`${API_BASE_URL}/admin/status`)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.error || 'Failed to get admin status')
+  }
+  return response.json()
+}
+
 /**
  * 发送聊天消息(流式)
  * @param {string} message - 用户消息
@@ -316,10 +325,11 @@ export async function getInstructions() {
  * 创建新指示
  * @param {string} content - 指示内容
  * @param {number} priority - 优先级
+ * @param {boolean} isPublic - 是否公开（默认私有）
  * @returns {Promise<Object>} 创建结果
  */
-export async function createInstruction(content, priority = 0) {
-  const body = { content, priority }
+export async function createInstruction(content, priority = 0, isPublic = false) {
+  const body = { content, priority, is_public: isPublic ? 1 : 0 }
 
   const response = await fetch(`${API_BASE_URL}/instructions`, {
     method: 'POST',
@@ -340,11 +350,14 @@ export async function createInstruction(content, priority = 0) {
 /**
  * 更新指示
  * @param {number} id - 指示ID
- * @param {Object} data - 更新数据 {content, is_active, priority}
+ * @param {Object} data - 更新数据 {content, is_active, priority, is_public}
  * @returns {Promise<Object>} 更新结果
  */
 export async function updateInstruction(id, data) {
   const body = { ...data }
+  if (body.is_public !== undefined) {
+    body.is_public = body.is_public ? 1 : 0
+  }
 
   const response = await fetch(`${API_BASE_URL}/instructions/${id}`, {
     method: 'PUT',

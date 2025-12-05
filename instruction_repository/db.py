@@ -2,6 +2,7 @@
 Instruction Repository - 数据库操作模块
 
 提供agent_instructions表的CRUD操作,使用统一的db_session管理器
+支持公开/私有指示，默认创建为私有
 """
 
 import logging
@@ -25,22 +26,39 @@ def _ensure_table_exists():
         content TEXT NOT NULL,
         is_active TINYINT DEFAULT 1,
         priority INT DEFAULT 0,
+        is_public TINYINT DEFAULT 0 COMMENT '是否公开: 1=公开, 0=私有',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_owner (owner),
-        INDEX idx_owner_active (owner, is_active)
+        INDEX idx_owner_active (owner, is_active),
+        INDEX idx_is_public (is_public)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent用户指示表'
     """
     try:
         with db_session() as cursor:
             cursor.execute(create_table_sql)
+            # 为旧表补充缺失字段/索引
+            alter_sqls = [
+                f"ALTER TABLE {TABLE_NAME} ADD COLUMN is_public TINYINT DEFAULT 0 COMMENT '是否公开: 1=公开, 0=私有'",
+                f"ALTER TABLE {TABLE_NAME} ADD INDEX idx_is_public (is_public)",
+                f"ALTER TABLE {TABLE_NAME} MODIFY COLUMN is_public TINYINT DEFAULT 0 COMMENT '是否公开: 1=公开, 0=私有'"
+            ]
+            for alter_sql in alter_sqls:
+                try:
+                    cursor.execute(alter_sql)
+                except Exception as e:
+                    msg = str(e)
+                    if "Duplicate column name" in msg or "Duplicate key name" in msg:
+                        logger.debug(f"Column/Index already exists, skip: {alter_sql}")
+                    else:
+                        logger.warning(f"Failed to alter table {TABLE_NAME}: {e}")
         logger.info(f"Table {TABLE_NAME} ensured to exist")
     except Exception as e:
         logger.error(f"Failed to create table {TABLE_NAME}: {e}")
         raise KsConnectionError(f"创建表失败: {e}")
 
 
-def create_instruction(owner: str, content: str, priority: int = 0) -> dict:
+def create_instruction(owner: str, content: str, priority: int = 0, is_public: bool = False) -> dict:
     """
     创建新指示
     
@@ -48,6 +66,7 @@ def create_instruction(owner: str, content: str, priority: int = 0) -> dict:
         owner: 所有者用户名
         content: 指示内容(≤400字符)
         priority: 优先级,数字越大越优先(默认0)
+        is_public: 是否公开（默认False=私有）
     
     Returns:
         {
@@ -74,10 +93,10 @@ def create_instruction(owner: str, content: str, priority: int = 0) -> dict:
     try:
         with db_session() as cursor:
             sql = f"""
-            INSERT INTO {TABLE_NAME} (owner, content, priority)
-            VALUES (%s, %s, %s)
+            INSERT INTO {TABLE_NAME} (owner, content, priority, is_public)
+            VALUES (%s, %s, %s, %s)
             """
-            cursor.execute(sql, (owner.strip(), content.strip(), priority))
+            cursor.execute(sql, (owner.strip(), content.strip(), priority, 1 if is_public else 0))
             
             return {
                 "success": True,
@@ -90,7 +109,7 @@ def create_instruction(owner: str, content: str, priority: int = 0) -> dict:
 
 def get_active_instructions(owner: str) -> list:
     """
-    获取用户的所有激活指示
+    获取用户可见的所有激活指示（公开指示 + 该用户的私有指示）
     
     Args:
         owner: 所有者用户名
@@ -101,6 +120,8 @@ def get_active_instructions(owner: str) -> list:
                 "id": 1,
                 "content": "回答要简洁明了",
                 "priority": 10,
+                "is_public": 0,
+                "owner": "userA",
                 "created_at": "2025-11-24 18:00:00"
             }
         ]
@@ -112,9 +133,9 @@ def get_active_instructions(owner: str) -> list:
     try:
         with db_session(dictionary=True) as cursor:
             sql = f"""
-            SELECT id, content, priority, created_at
+            SELECT id, owner, content, priority, is_public, created_at
             FROM {TABLE_NAME}
-            WHERE owner = %s AND is_active = 1
+            WHERE is_active = 1 AND (is_public = 1 OR owner = %s)
             ORDER BY priority DESC, created_at ASC
             """
             cursor.execute(sql, (owner,))
@@ -133,7 +154,7 @@ def get_active_instructions(owner: str) -> list:
 
 def get_all_instructions(owner: str, include_inactive: bool = False) -> list:
     """
-    获取用户的所有指示
+    获取用户可见的所有指示（公开指示 + 该用户的私有指示）
     
     Args:
         owner: 所有者用户名
@@ -146,6 +167,8 @@ def get_all_instructions(owner: str, include_inactive: bool = False) -> list:
                 "content": "回答要简洁明了",
                 "is_active": 1,
                 "priority": 10,
+                "is_public": 0,
+                "owner": "userA",
                 "created_at": "2025-11-24 18:00:00",
                 "updated_at": "2025-11-24 18:00:00"
             }
@@ -155,22 +178,17 @@ def get_all_instructions(owner: str, include_inactive: bool = False) -> list:
     
     try:
         with db_session(dictionary=True) as cursor:
-            if include_inactive:
-                sql = f"""
-                SELECT id, content, is_active, priority, created_at, updated_at
+            base_sql = f"""
+                SELECT id, owner, content, is_active, priority, is_public, created_at, updated_at
                 FROM {TABLE_NAME}
-                WHERE owner = %s
-                ORDER BY priority DESC, created_at ASC
-                """
-            else:
-                sql = f"""
-                SELECT id, content, is_active, priority, created_at, updated_at
-                FROM {TABLE_NAME}
-                WHERE owner = %s AND is_active = 1
-                ORDER BY priority DESC, created_at ASC
-                """
+                WHERE (is_public = 1 OR owner = %s)
+            """
+            if not include_inactive:
+                base_sql += " AND is_active = 1"
             
-            cursor.execute(sql, (owner,))
+            base_sql += " ORDER BY priority DESC, created_at ASC"
+            
+            cursor.execute(base_sql, (owner,))
             results = cursor.fetchall()
             
             # 格式化时间
@@ -192,7 +210,7 @@ def get_instruction_by_id(instruction_id: int, owner: str) -> dict:
     
     Args:
         instruction_id: 指示ID
-        owner: 所有者用户名(用于权限验证)
+        owner: 当前用户(用于权限验证)
     
     Returns:
         {
@@ -200,6 +218,8 @@ def get_instruction_by_id(instruction_id: int, owner: str) -> dict:
             "content": "回答要简洁明了",
             "is_active": 1,
             "priority": 10,
+            "is_public": 0,
+            "owner": "userA",
             "created_at": "2025-11-24 18:00:00",
             "updated_at": "2025-11-24 18:00:00"
         }
@@ -213,9 +233,9 @@ def get_instruction_by_id(instruction_id: int, owner: str) -> dict:
     try:
         with db_session(dictionary=True) as cursor:
             sql = f"""
-            SELECT id, content, is_active, priority, created_at, updated_at
+            SELECT id, owner, content, is_active, priority, is_public, created_at, updated_at
             FROM {TABLE_NAME}
-            WHERE id = %s AND owner = %s
+            WHERE id = %s AND (is_public = 1 OR owner = %s)
             """
             cursor.execute(sql, (instruction_id, owner))
             result = cursor.fetchone()
@@ -242,7 +262,8 @@ def update_instruction(
     owner: str,
     content: str = None,
     is_active: int = None,
-    priority: int = None
+    priority: int = None,
+    is_public: int = None
 ) -> dict:
     """
     更新指示
@@ -253,6 +274,7 @@ def update_instruction(
         content: 新的指示内容(可选,≤400字符)
         is_active: 是否启用(可选,0或1)
         priority: 优先级(可选)
+        is_public: 是否公开(可选,0或1)
     
     Returns:
         {
@@ -270,6 +292,9 @@ def update_instruction(
     
     if is_active is not None and is_active not in (0, 1):
         raise ValueError("is_active必须为0或1")
+    
+    if is_public is not None and is_public not in (0, 1, True, False):
+        raise ValueError("is_public必须为0或1")
     
     _ensure_table_exists()
     
@@ -296,6 +321,10 @@ def update_instruction(
             if priority is not None:
                 update_fields.append("priority = %s")
                 params.append(priority)
+            
+            if is_public is not None:
+                update_fields.append("is_public = %s")
+                params.append(1 if is_public else 0)
             
             if not update_fields:
                 return {"success": True, "message": "无更新内容"}

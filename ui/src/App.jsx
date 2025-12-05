@@ -9,15 +9,32 @@ import PdfViewer from './components/PdfViewer'
 import ExcelViewer from './components/ExcelViewer'
 import ConversationSidebar from './components/ConversationSidebar'
 import ReminderAnalysisPanel from './components/ReminderAnalysisPanel'
+import { getAdminStatus } from './services/api'
 
 function App() {
   const messages = useStore(state => state.messages)
   const fetchReminders = useStore(state => state.fetchReminders)
+  const setIsAdmin = useStore(state => state.setIsAdmin)
   const hasMessages = messages.length > 0
 
   // 初始化时获取提醒数据(带缓存判断)
   useEffect(() => {
     fetchReminders()
+  }, [])
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const result = await getAdminStatus()
+        const isAdmin = !!result.is_admin
+        setIsAdmin(isAdmin)
+        console.log('[Admin] is_admin:', isAdmin, 'cookie_present:', result.cookie_present)
+      } catch (error) {
+        console.warn('Failed to fetch admin status:', error)
+        setIsAdmin(false)
+      }
+    }
+    checkAdmin()
   }, [])
 
   return (
@@ -31,7 +48,7 @@ function App() {
       {/* 主容器 - 包含主视图、知识侧边栏、提醒侧边栏和PDF浏览器 */}
       <div className="flex space-x-4">
         {/* 主聊天视图区域 */}
-        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-2rem)]">
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-2rem)] sticky top-4 self-start">
           {!hasMessages && <div className="flex-grow min-h-[25vh]"></div>}
           <div className="flex-shrink-0">
             <ChatView />

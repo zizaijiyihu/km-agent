@@ -52,3 +52,6 @@ HR_API_CONFIG = {
     "base_url": "http://10.69.87.93:8001/api/hr/employee",
     "api_token": "demo-api-token-please-change-this"
 }
+
+# Admin后门认证Token（可按需修改）
+ADMIN_BACKDOOR_TOKEN = "5HYRM0GR17DCVB@MMKI"

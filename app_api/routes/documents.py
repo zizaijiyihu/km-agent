@@ -9,7 +9,7 @@ from flask import Blueprint, request, jsonify, Response, stream_with_context, se
 import file_repository
 from app_api.services.validators import allowed_file
 from app_api.services.agent_service import get_vectorizer
-from ks_infrastructure import get_current_user
+from ks_infrastructure import get_current_user, is_admin
 
 documents_bp = Blueprint('documents', __name__)
 
@@ -115,6 +115,12 @@ def upload_document():
     owner = get_current_user()
     is_public = int(request.form.get('is_public', 0))
     filename = file.filename
+
+    if is_public == 1 and not is_admin():
+        return jsonify({
+            "success": False,
+            "error": "ADMIN_REQUIRED"
+        }), 403
 
     # Determine content type based on file extension
     file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
@@ -386,6 +392,12 @@ def update_visibility(filename):
             }), 400
 
         owner = get_current_user()
+
+        if is_public == 1 and not is_admin():
+            return jsonify({
+                "success": False,
+                "error": "ADMIN_REQUIRED"
+            }), 403
 
         # Update visibility using file_repository
         success = file_repository.set_file_public(

@@ -14,7 +14,7 @@ import sys
 import time
 import traceback
 import logging
-from flask import Flask, request, g
+from flask import Flask, request, g, make_response
 from flask_cors import CORS
 from app_api import config
 from app_api.services.agent_service import init_services
@@ -26,6 +26,10 @@ from app_api.routes.health import health_bp
 from app_api.routes.quotes import quotes_bp
 from app_api.routes.conversations import conversations_bp
 from app_api.routes.reminders import reminders_bp
+from ks_infrastructure.services.user_info_service import (
+    ADMIN_COOKIE_NAME,
+    is_admin,
+)
 
 # Configure logging with enhanced format for call tracking
 logging.basicConfig(
@@ -64,6 +68,9 @@ def create_app():
 
         logger.info("="*80)
         logger.info(f"[请求开始] {request.method} {request.path}")
+
+        # 记录管理员判定（不输出token）
+        logger.info(f"[Admin检查] is_admin={is_admin()} cookie_present={bool(request.cookies.get(ADMIN_COOKIE_NAME))}")
 
         # 记录请求参数
         if request.args:
@@ -204,6 +211,42 @@ def create_app():
     app.register_blueprint(quotes_bp)
     app.register_blueprint(conversations_bp)
     app.register_blueprint(reminders_bp)
+
+    @app.route('/admin', methods=['GET'])
+    @app.route('/api/admin', methods=['GET'])
+    def admin_auth():
+        """校验admin token并下发管理员cookie"""
+        token_from_request = request.args.get("token") or request.headers.get("X-Admin-Token")
+
+        # 允许使用现有cookie续期
+        cookie_token = request.cookies.get(ADMIN_COOKIE_NAME)
+        candidate_token = token_from_request or cookie_token
+
+        if not is_admin(candidate_token):
+            logger.warning("[Admin] Token校验失败")
+            return {"success": False, "error": "INVALID_ADMIN_TOKEN"}, 403
+
+        response = make_response({"success": True, "message": "Admin token verified"})
+        response.set_cookie(
+            ADMIN_COOKIE_NAME,
+            candidate_token,
+            max_age=7 * 24 * 60 * 60,  # 7天
+            httponly=True,
+            secure=False,
+            samesite="Lax",
+            path="/"
+        )
+        logger.info("[Admin] Token校验成功，已写入cookie")
+        return response
+
+    @app.route('/api/admin/status', methods=['GET'])
+    def admin_status():
+        """返回当前请求是否为admin"""
+        return {
+            "success": True,
+            "is_admin": is_admin(),
+            "cookie_present": bool(request.cookies.get(ADMIN_COOKIE_NAME))
+        }
 
     return app
 
