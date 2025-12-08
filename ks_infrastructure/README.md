@@ -397,9 +397,61 @@ python tests/test_all_services.py
 
 测试脚本位于 `tests/test_all_services.py`，可直接运行验证服务功能。
 
-## 配置文件
+## 配置管理与环境隔离
 
-默认配置文件位于 `configs/default.py`，可以根据需要进行修改或覆盖。
+本模块支持通过环境变量进行配置覆盖，以适应不同的部署环境（开发、测试、生产）。
+
+### 1. 环境标识
+
+通过设置环境变量 `APP_ENV` 来标识当前运行环境：
+
+- `development` (默认): 开发环境，使用 `configs/default.py` 中的默认配置。
+- `production`: 生产环境，建议通过环境变量覆盖敏感配置。如果检测到未设置环境变量而使用默认敏感配置，会打印警告日志。
+
+```bash
+export APP_ENV=production
+```
+
+### 2. 环境变量覆盖
+
+支持通过环境变量覆盖默认配置。对于字典类型的配置（如数据库配置），支持使用 **JSON 字符串** 格式的环境变量。
+
+| 配置项 | 环境变量名 | 格式 | 说明 |
+| :--- | :--- | :--- | :--- |
+| MySQL配置 | `MYSQL_CONFIG_JSON` | JSON String | 覆盖 `MYSQL_CONFIG` |
+| MinIO配置 | `MINIO_CONFIG_JSON` | JSON String | 覆盖 `MINIO_CONFIG` |
+| Qdrant配置 | `QDRANT_CONFIG_JSON` | JSON String | 覆盖 `QDRANT_CONFIG` |
+| OpenAI配置 | `OPENAI_CONFIG_JSON` | JSON String | 覆盖 `OPENAI_CONFIG` |
+| Embedding配置 | `EMBEDDING_CONFIG_JSON` | JSON String | 覆盖 `EMBEDDING_CONFIG` |
+| Vision配置 | `VISION_CONFIG_JSON` | JSON String | 覆盖 `VISION_CONFIG` |
+| HR API配置 | `HR_API_CONFIG_JSON` | JSON String | 覆盖 `HR_API_CONFIG` |
+| Admin Token | `ADMIN_BACKDOOR_TOKEN` | String | 覆盖管理员Token |
+| 默认用户 | `DEFAULT_USER` | String | 覆盖默认测试用户 |
+
+### 3. 配置示例
+
+**Linux/Mac:**
+
+```bash
+# 设置生产环境
+export APP_ENV=production
+
+# 覆盖 MySQL 配置
+export MYSQL_CONFIG_JSON='{"host": "prod-db.example.com", "port": 3306, "user": "prod_user", "password": "secure_password", "database": "prod_db"}'
+
+# 覆盖 OpenAI Key
+export OPENAI_CONFIG_JSON='{"api_key": "sk-prod-key...", "base_url": "...", "model": "gpt-4"}'
+```
+
+**Docker Compose:**
+
+```yaml
+services:
+  app:
+    environment:
+      - APP_ENV=production
+      - MYSQL_CONFIG_JSON={"host": "db", "port": 3306, "user": "root", "password": "pwd"}
+```
 
 ## 许可证
 

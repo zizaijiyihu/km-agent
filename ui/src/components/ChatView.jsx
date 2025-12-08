@@ -296,9 +296,34 @@ function ChatView() {
       {hasMessages && (
         <div
           ref={messageContainerRef}
-          className="flex-1 overflow-y-auto scrollbar-thin bg-white transition-all duration-1200 ease-out pt-[5vh]"
+          className="flex-1 overflow-y-auto scrollbar-thin bg-white transition-all duration-1200 ease-out"
         >
-          <div className="w-full max-w-[760px] mx-auto p-4">
+          {/* 吸顶工具栏 - 在消息滚动时固定在顶部 */}
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+            <div className="w-full max-w-[760px] mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <i className="fa fa-comments-o text-gray-400" aria-hidden="true"></i>
+                <span className="text-sm font-medium text-gray-600">对话记录</span>
+                <span className="text-xs text-gray-400">({messages.length} 条消息)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (messageContainerRef.current) {
+                      messageContainerRef.current.scrollTop = 0
+                    }
+                  }}
+                  className="text-xs text-gray-500 hover:text-primary transition-colors flex items-center gap-1"
+                  title="回到顶部"
+                >
+                  <i className="fa fa-arrow-up" aria-hidden="true"></i>
+                  <span>顶部</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="w-full max-w-[760px] mx-auto p-4 pt-6">
             {messages.map((msg, index) => (
               <ChatMessage key={index} message={msg} />
             ))}

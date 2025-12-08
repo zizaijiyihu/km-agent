@@ -100,7 +100,7 @@ function InstructionSidebar() {
     return (
         <div
             className={`${isOpen ? 'w-80 border-l border-gray-200' : 'w-0'
-                } overflow-hidden transition-all duration-300 bg-white`}
+                } overflow-hidden transition-all duration-300 bg-white relative z-30`}
         >
             <div className="w-80 h-[calc(100vh-200px)] my-[100px] p-6 overflow-y-auto scrollbar-thin">
                 {/* 头部 */}
@@ -117,11 +117,11 @@ function InstructionSidebar() {
                 {/* 创建新指示 */}
                 <div className="mb-6">
                     {isCreating ? (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                    <textarea
-                        value={newContent}
-                        onChange={(e) => setNewContent(e.target.value)}
-                        placeholder="请输入新的指示内容..."
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <textarea
+                                value={newContent}
+                                onChange={(e) => setNewContent(e.target.value)}
+                                placeholder="请输入新的指示内容..."
                                 className="w-full p-2 mb-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none resize-none bg-white"
                                 rows="3"
                                 autoFocus

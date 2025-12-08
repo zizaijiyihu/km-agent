@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 
 from flask import has_request_context, request
 
-from ..configs.default import ADMIN_BACKDOOR_TOKEN
+from ..configs import ADMIN_BACKDOOR_TOKEN, DEFAULT_USER
 from .base import get_instance_key, get_cached_instance, set_cached_instance
 from .exceptions import KsServiceError
 
@@ -430,5 +430,9 @@ def get_current_user() -> str:
     Returns:
         str: 当前用户名
     """
-    # 目前返回默认用户，未来可扩展为从请求头或Token中获取
-    return "huxiaoxiao"
+    if has_request_context():
+        user_id = request.headers.get("X-User-Id")
+        if user_id:
+            return user_id
+
+    return DEFAULT_USER

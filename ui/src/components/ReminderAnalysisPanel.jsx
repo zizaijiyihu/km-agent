@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import useStore from '../store/useStore'
 import ReminderAnalysisCard from './ReminderAnalysisCard'
 
@@ -9,6 +9,18 @@ function ReminderAnalysisPanel() {
     const isLoading = useStore(state => state.isRemindersLoading)
     const closedReminders = useStore(state => state.closedReminders)
     const closeReminder = useStore(state => state.closeReminder)
+
+    // 监听三个侧边栏的打开状态
+    const isKnowledgeSidebarOpen = useStore(state => state.isKnowledgeSidebarOpen)
+    const isInstructionSidebarOpen = useStore(state => state.isInstructionSidebarOpen)
+    const isReminderSidebarOpen = useStore(state => state.isReminderSidebarOpen)
+
+    // 当任意侧边栏打开时，自动收起智能提醒面板
+    useEffect(() => {
+        if (isKnowledgeSidebarOpen || isInstructionSidebarOpen || isReminderSidebarOpen) {
+            setIsCollapsed(true)
+        }
+    }, [isKnowledgeSidebarOpen, isInstructionSidebarOpen, isReminderSidebarOpen])
 
     // 过滤掉已关闭的提醒(检查过期时间)
     const now = Date.now()
@@ -54,23 +66,13 @@ function ReminderAnalysisPanel() {
 
                 <div>
                     <div
-                        className="w-80 max-h-[80vh] overflow-y-auto scrollbar-thin bg-white/30 backdrop-blur-sm p-4 space-y-3"
+                        className={`w-80 max-h-[80vh] overflow-y-auto scrollbar-thin bg-white/30 backdrop-blur-sm p-4 space-y-3 ${isCollapsed ? 'pointer-events-none' : ''}`}
                         style={{
                             borderTopLeftRadius: '16px',
                             borderBottomLeftRadius: '16px'
                         }}
                         aria-hidden={isCollapsed}
                     >
-                        {/* 标题 */}
-                        <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-50">
-                            <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                <i className="fa fa-bell-o text-primary"></i>
-                                <span>智能提醒</span>
-                            </h3>
-                            {isLoading && (
-                                <i className="fa fa-circle-o-notch fa-spin text-xs text-gray-400"></i>
-                            )}
-                        </div>
 
                         {/* 提醒卡片列表 */}
                         {isLoading ? (

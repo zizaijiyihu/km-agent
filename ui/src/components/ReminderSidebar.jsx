@@ -89,7 +89,7 @@ function ReminderSidebar() {
     return (
         <div
             className={`${isOpen ? 'w-80 border-l border-gray-100' : 'w-0'
-                } overflow-hidden transition-all duration-300 bg-white`}
+                } overflow-hidden transition-all duration-300 bg-white relative z-30`}
         >
             <div className="w-80 h-[calc(100vh-200px)] my-[100px] p-6 overflow-y-auto scrollbar-thin">
                 {/* 头部 */}
