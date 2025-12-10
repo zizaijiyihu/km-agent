@@ -18,16 +18,25 @@ function ExcelViewer() {
 
   const workbookRef = useRef(null)
   const tableRef = useRef(null)
+  const programScrollingRef = useRef(false) // 标记程序是否正在自动滚动
+  const loadedFilenameRef = useRef(null) // 记录已加载的文件名
 
-  // 加载 Excel 文件
+  // 加载 Excel 文件（仅当文件名变化时重新加载）
   useEffect(() => {
     const fetchExcel = async () => {
       if (!currentExcel) return
+
+      // 如果是同一个文件，不重新加载
+      if (loadedFilenameRef.current === currentExcel.filename && rows.length > 0) {
+        return
+      }
+
       setLoading(true)
       setError(null)
       setRows([])
       setSheetNames([])
       workbookRef.current = null
+      loadedFilenameRef.current = currentExcel.filename
 
       try {
         const resp = await fetch(`/api/documents/${encodeURIComponent(currentExcel.filename)}/content`)
@@ -66,8 +75,9 @@ function ExcelViewer() {
       setSheetNames([])
       setActiveSheet(null)
       setError(null)
+      loadedFilenameRef.current = null
     }
-  }, [isOpen, currentExcel])
+  }, [isOpen, currentExcel?.filename])
 
   // 切换 sheet
   const loadSheet = (sheetName) => {
@@ -80,16 +90,55 @@ function ExcelViewer() {
     setActiveSheet(sheetName)
   }
 
-  // 高亮并滚动到行
+  // 当目标行号变化时滚动到新行（无动画）
   useEffect(() => {
     if (!currentExcel?.rowNumber || !tableRef.current || rows.length === 0) return
-    const targetIndex = currentExcel.rowNumber - 1
 
+    const targetIndex = currentExcel.rowNumber - 1
     const rowElement = tableRef.current.querySelector(`[data-row-index="${targetIndex}"]`)
     if (rowElement) {
-      rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // 标记程序正在自动滚动
+      programScrollingRef.current = true
+
+      // 使用 auto 行为，立即跳转无动画
+      rowElement.scrollIntoView({ behavior: 'auto', block: 'center' })
+
+      // 滚动完成后，重置程序滚动标记
+      setTimeout(() => {
+        programScrollingRef.current = false
+      }, 100)
     }
   }, [rows, currentExcel?.rowNumber])
+
+  // 监听用户手动滚动，防止与程序滚动冲突
+  useEffect(() => {
+    const scrollContainer = tableRef.current
+    if (!scrollContainer) return
+
+    let scrollTimeout = null
+    const handleScroll = () => {
+      // 如果是程序自动滚动，忽略此次滚动事件
+      if (programScrollingRef.current) return
+
+      // 清除之前的定时器
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout)
+      }
+
+      // 延迟处理，避免与程序滚动冲突
+      scrollTimeout = setTimeout(() => {
+        // 用户滚动后的处理逻辑（如果需要的话）
+      }, 150)
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout)
+      }
+    }
+  }, [])
 
   const displayedRows = useMemo(() => rows.slice(0, MAX_ROWS_DISPLAY), [rows])
   const hasMore = rows.length > MAX_ROWS_DISPLAY

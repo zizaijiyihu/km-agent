@@ -25,7 +25,7 @@ def ks_minio(**kwargs) -> BaseClient:
     Raises:
         KsConnectionError: 当连接失败时抛出
     """
-    from ..configs.default import MINIO_CONFIG
+    from ..configs import MINIO_CONFIG
 
     # 合并默认配置和传入参数
     config = {

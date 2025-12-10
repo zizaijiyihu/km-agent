@@ -33,6 +33,7 @@ function ChatView() {
   const [uploadedImages, setUploadedImages] = useState([])
   const [analyzingImage, setAnalyzingImage] = useState(null)
   const [isRefreshingReminders, setIsRefreshingReminders] = useState(false)
+  const [isComposing, setIsComposing] = useState(false)
 
   const messageContainerRef = useRef(null)
   const inputRef = useRef(null)
@@ -277,7 +278,8 @@ function ChatView() {
 
   // 处理键盘事件
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // 当用户正在使用输入法（如中文输入法）时，不处理回车
+    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault()
       handleSendMessage()
     }
@@ -410,6 +412,8 @@ function ChatView() {
                   }}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
                   className="w-full pr-20 outline-none resize-none bg-transparent transition-all duration-300"
                   placeholder={currentCarouselQuestion || '发消息或粘贴图片，输入/选择技能'}
                   rows="2"

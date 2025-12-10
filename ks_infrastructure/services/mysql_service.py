@@ -25,7 +25,7 @@ def get_mysql_pool() -> pooling.MySQLConnectionPool:
     global _connection_pool
     
     if _connection_pool is None:
-        from ..configs.default import MYSQL_CONFIG
+        from ..configs import MYSQL_CONFIG
         
         try:
             _connection_pool = pooling.MySQLConnectionPool(

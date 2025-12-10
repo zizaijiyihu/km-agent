@@ -98,7 +98,7 @@ def ks_embedding(**kwargs) -> KsEmbeddingService:
     Returns:
         KsEmbeddingService: Embedding服务对象
     """
-    from ..configs.default import EMBEDDING_CONFIG
+    from ..configs import EMBEDDING_CONFIG
 
     # 合并默认配置和传入参数
     config = {**EMBEDDING_CONFIG, **kwargs}

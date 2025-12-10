@@ -24,7 +24,7 @@ def ks_openai(**kwargs) -> OpenAI:
     Raises:
         KsConnectionError: 当连接失败时抛出
     """
-    from ..configs.default import OPENAI_CONFIG
+    from ..configs import OPENAI_CONFIG
 
     # 合并默认配置和传入参数
     config = {**OPENAI_CONFIG, **kwargs}

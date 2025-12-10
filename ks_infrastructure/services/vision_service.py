@@ -98,7 +98,7 @@ def ks_vision(**kwargs) -> KsVisionService:
     Returns:
         KsVisionService: Vision服务对象
     """
-    from ..configs.default import VISION_CONFIG
+    from ..configs import VISION_CONFIG
 
     # 合并默认配置和传入参数
     config = {**VISION_CONFIG, **kwargs}
@@ -109,10 +109,10 @@ def ks_vision(**kwargs) -> KsVisionService:
     if cached is not None:
         return cached
 
-    api_key = config.get('api_key') or os.getenv("DASHSCOPE_API_KEY")
-    base_url = config.get('base_url') or "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    model = config.get('model') or "qwen-vl-max"
-
+    api_key = config.get('api_key') 
+    base_url = config.get('base_url') 
+    model = config.get('model') 
+    
     instance = KsVisionService(
         api_key=api_key,
         base_url=base_url,

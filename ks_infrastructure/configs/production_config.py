@@ -8,16 +8,16 @@
 
 # MySQL数据库配置
 MYSQL_CONFIG = {
-    "host": "120.92.109.164",
+    "host": "10.69.68.226",
     "port": 8306,
-    "user": "admin",
-    "password": "rsdyxjh",
+    "user": "root",
+    "password": "Kingsoft_com123!",
     "database": "yanzhi"
 }
 
 # MinIO对象存储配置
 MINIO_CONFIG = {
-    "endpoint": "http://120.92.109.164:9000",  # S3 API服务端口
+    "endpoint": "http://10.69.68.226:8900",  # MinIO API endpoint
     "access_key": "admin",
     "secret_key": "rsdyxjh110!",
     "region": "us-east-1"
@@ -25,7 +25,7 @@ MINIO_CONFIG = {
 
 # Qdrant向量数据库配置
 QDRANT_CONFIG = {
-    "url": "http://120.92.109.164:6333",
+    "url": "http://10.69.68.226:8933",
     "api_key": "rsdyxjh"
 }
 
@@ -44,9 +44,9 @@ EMBEDDING_CONFIG = {
 
 # Vision视觉识别服务配置
 VISION_CONFIG = {
-    "api_key": "sk-412a5b410f664d60a29327fdfa28ac6e",
-    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "model": "qwen-vl-max"
+    "api_key": "73e6f0a3-c154-4ad4-bb7b-912f2c498e3e",
+    "base_url": "https://kspmas.ksyun.com/v1/",
+    "model": "qwen3-vl-235b-a22b-instruct"
 }
 
 # HR API用户信息服务配置
@@ -63,8 +63,8 @@ DEFAULT_USER = "huxiaoxiao"
 
 # Redis配置
 REDIS_CONFIG = {
-    "host": "120.92.109.164",
-    "port": 6379,
-    "password": "o5kT7Qy%Wb@3nL9pXz!a2DqR",
+    "host": "10.69.68.226",
+    "port": 8378,
+    "password": "Zu5GpNWDO&wlHxgS",
     "db": 0
 }

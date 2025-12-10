@@ -3,6 +3,7 @@ HR API用户信息服务
 """
 
 import logging
+import os
 import requests
 from typing import Dict, Any, Optional
 
@@ -377,7 +378,7 @@ def ks_user_info(**kwargs) -> KsUserInfoService:
     Returns:
         KsUserInfoService: 用户信息服务对象
     """
-    from ..configs.default import HR_API_CONFIG
+    from ..configs import HR_API_CONFIG
 
     # 合并默认配置和传入参数
     config = {**HR_API_CONFIG, **kwargs}
@@ -429,10 +430,20 @@ def get_current_user() -> str:
     
     Returns:
         str: 当前用户名
+        
+    Raises:
+        KsServiceError: 当生产环境未提供用户身份信息时抛出
     """
     if has_request_context():
         user_id = request.headers.get("X-User-Id")
         if user_id:
             return user_id
-
-    return DEFAULT_USER
+    
+    # 只有在开发环境才使用DEFAULT_USER
+    app_env = os.getenv("APP_ENV", "").lower()
+    if app_env == "development":
+        logger.info(f"开发环境，使用默认用户: {DEFAULT_USER}")
+        return DEFAULT_USER
+    
+    # 生产环境必须提供X-User-Id
+    raise KsServiceError("未提供用户身份信息（X-User-Id header缺失）")

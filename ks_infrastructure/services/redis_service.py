@@ -23,7 +23,7 @@ def ks_redis(**kwargs) -> redis.Redis:
     Raises:
         KsConnectionError: 当连接失败时抛出
     """
-    from ..configs.default import REDIS_CONFIG
+    from ..configs import REDIS_CONFIG
 
     # 合并默认配置和传入参数
     config = {

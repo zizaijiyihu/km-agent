@@ -172,7 +172,7 @@ converter = PDFToJSONConverter()
 
 **无需参数**：所有配置由 `ks_infrastructure` 模块管理。
 - Vision API 密钥从环境变量 `DASHSCOPE_API_KEY` 读取，或使用 `ks_infrastructure/configs/default.py` 中的配置
-- 自动使用 `qwen-vl-plus` 模型（针对 PDF 分析优化）
+- 自动使用 `qwen` 模型（针对 PDF 分析优化）
 
 #### 方法
 

@@ -43,7 +43,7 @@ class PDFToJSONConverter:
         """
         # Get vision service from ks_infrastructure
         # Use qwen-vl-plus model for PDF analysis (faster and cheaper than qwen-vl-max)
-        self.vision_service = ks_vision(model='qwen-vl-plus')
+        self.vision_service = ks_vision()
         self.image_cache = {}
 
     def analyze_image(self, image_base64: str, image_format: str) -> str:
