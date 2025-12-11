@@ -1,0 +1,9 @@
+# Tmp Image Repository Module Dependencies
+# 临时图片分析服务
+
+# Local Module Dependencies
+# file_repository - for file upload
+# ks_infrastructure - provides vision service, minio config
+# Install from parent directory:
+# pip install -e ../file_repository
+# pip install -e ../ks_infrastructure

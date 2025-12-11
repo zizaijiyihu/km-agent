@@ -1,0 +1,17 @@
+# KM Agent Module Dependencies
+# 知识管理智能代理
+
+# Local Module Dependencies
+# document_vectorizer - for knowledge base operations
+# aibase_news - for AI news retrieval
+# beisen_course - for course management
+# conversation_repository - for conversation history
+# instruction_repository - for custom instructions
+# ks_infrastructure - provides OpenAI, user_info services
+# Install from parent directory:
+# pip install -e ../document_vectorizer
+# pip install -e ../aibase_news
+# pip install -e ../beisen_course
+# pip install -e ../conversation_repository
+# pip install -e ../instruction_repository
+# pip install -e ../ks_infrastructure

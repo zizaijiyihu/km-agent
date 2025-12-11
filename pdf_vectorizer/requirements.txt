@@ -1,0 +1,12 @@
+# PDF Vectorizer Module Dependencies
+# PDF向量化服务（已被document_vectorizer取代）
+
+# Vector Database
+qdrant-client>=1.7.0
+
+# Local Module Dependencies
+# pdf_to_json - for PDF parsing
+# ks_infrastructure - provides embedding, qdrant services
+# Install from parent directory:
+# pip install -e ../pdf_to_json
+# pip install -e ../ks_infrastructure

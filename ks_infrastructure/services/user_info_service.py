@@ -429,10 +429,7 @@ def get_current_user() -> str:
     获取当前用户
     
     Returns:
-        str: 当前用户名
-        
-    Raises:
-        KsServiceError: 当生产环境未提供用户身份信息时抛出
+        str: 当前用户名，未获取到时返回空字符串
     """
     if has_request_context():
         user_id = request.headers.get("X-User-Id")
@@ -445,5 +442,5 @@ def get_current_user() -> str:
         logger.info(f"开发环境，使用默认用户: {DEFAULT_USER}")
         return DEFAULT_USER
     
-    # 生产环境必须提供X-User-Id
-    raise KsServiceError("未提供用户身份信息（X-User-Id header缺失）")
+    # 未获取到用户信息返回空字符串
+    return ""

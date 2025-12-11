@@ -15,7 +15,7 @@ const shuffleArray = (array) => {
 
 // 常量
 const CLOSED_REMINDERS_DURATION = 5 * 60 * 60 * 1000 // 5小时(毫秒)
-const STORAGE_VERSION = 1 // 用于数据结构版本控制
+const STORAGE_VERSION = 2 // 用于数据结构版本控制
 
 const useStore = create(
   persist(
@@ -446,10 +446,15 @@ const useStore = create(
       partialize: (state) => ({
         // 只持久化关闭记录(带时间戳)
         closedReminders: state.closedReminders,
-
-        // 持久化其他需要的数据
-        currentConversationId: state.currentConversationId,
       }),
+      migrate: (persistedState, version) => {
+        if (version < 2) {
+          // 移除已持久化的 currentConversationId，避免默认选中历史会话
+          const { currentConversationId, ...rest } = persistedState || {}
+          return { ...rest, currentConversationId: null }
+        }
+        return persistedState
+      },
     }
   )
 )

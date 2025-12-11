@@ -1,0 +1,12 @@
+# AIBase News Module Dependencies
+# 抓取和获取AI相关新闻资讯
+
+# Web Crawler
+crawl4ai>=0.1.0
+
+# HTTP Client
+requests>=2.31.0
+
+# Infrastructure (install from parent)
+# ks_infrastructure - provides OpenAI service
+# Install from parent directory: pip install -e ../ks_infrastructure

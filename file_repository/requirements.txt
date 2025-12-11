@@ -1,0 +1,9 @@
+# File Repository Module Dependencies
+# 文件存储服务（基于MinIO和MySQL）
+
+# AWS S3 / MinIO Client
+boto3>=1.26.0
+
+# Infrastructure (install from parent)
+# ks_infrastructure - provides minio_service, db_session
+# Install from parent directory: pip install -e ../ks_infrastructure

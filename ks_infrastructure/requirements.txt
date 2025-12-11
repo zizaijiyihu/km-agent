@@ -1,0 +1,24 @@
+# KS Infrastructure Module Dependencies
+# 统一基础设施服务层
+# Note: This module also has pyproject.toml for packaging
+
+# AI & LLM
+openai>=1.0.0
+
+# Database - MySQL
+mysql-connector-python>=8.0.0
+
+# Object Storage - MinIO (S3 compatible)
+boto3>=1.26.0
+
+# Vector Database
+qdrant-client>=1.1.0
+
+# Cache
+redis>=5.0.0
+
+# HTTP Client
+requests>=2.31.0
+
+# Web Framework (for user service)
+flask>=3.0.0

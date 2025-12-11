@@ -190,7 +190,7 @@ function QuoteDisplay({ visible }) {
                 {/* Logo Component - Fixed size, centered content */}
                 <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center mr-10">
                     <img
-                        src="/images/logo.png"
+                        src="/images/qingzhi-logo.png"
                         alt="金山云"
                         className="w-full h-full object-contain"
                     />

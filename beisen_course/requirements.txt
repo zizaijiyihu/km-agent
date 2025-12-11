@@ -1,0 +1,5 @@
+# Beisen Course Module Dependencies
+# 北森课程服务，获取课程列表
+
+# HTTP Client
+requests>=2.31.0

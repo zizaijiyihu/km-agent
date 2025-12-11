@@ -1,0 +1,19 @@
+# App API Module Dependencies
+# Flask API服务，提供HTTP接口
+
+# Web Framework
+flask>=3.0.0
+flask-cors>=4.0.0
+werkzeug>=3.0.1
+
+# Local Module Dependencies
+# Install from parent directory:
+# pip install -e ../km_agent
+# pip install -e ../document_vectorizer
+# pip install -e ../file_repository
+# pip install -e ../instruction_repository
+# pip install -e ../quote_repository
+# pip install -e ../reminder_repository
+# pip install -e ../tmp_image_repository
+# pip install -e ../conversation_repository
+# pip install -e ../ks_infrastructure

@@ -1,0 +1,15 @@
+# Document Vectorizer Module Dependencies
+# 通用文档向量化服务（支持PDF和Excel）
+
+# Data Processing
+pandas>=2.0.0
+
+# Vector Database
+qdrant-client>=1.7.0
+
+# Local Module Dependencies
+# pdf_to_json - for PDF processing
+# ks_infrastructure - provides embedding, qdrant, openai services
+# Install from parent directory:
+# pip install -e ../pdf_to_json
+# pip install -e ../ks_infrastructure

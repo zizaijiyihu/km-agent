@@ -1,0 +1,75 @@
+# ==============================================================================
+# .dockerignore - 减小 Docker 构建上下文
+# 排除不必要的文件，加快构建速度，减小镜像体积
+# ==============================================================================
+
+# Git 相关
+.git
+.gitignore
+.gitattributes
+
+# IDE 相关
+.vscode
+.idea
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Python 缓存和虚拟环境
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# 前端构建产物和依赖（会在 Docker 内重新构建）
+ui/node_modules
+ui/dist
+ui/.vite
+
+# 测试相关
+test/
+tests/
+*.test.py
+pytest_cache/
+.coverage
+htmlcov/
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 配置文件（本地开发用）
+.env
+.env.local
+.env.*.local
+
+# 文档
+*.md
+docs/
+
+# 部署脚本（不需要在容器内）
+deploy.sh
+start.sh
+stop.sh
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# 其他
+*.bak
+*.orig
+*.rej
+.cache

@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  km-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: km-agent:latest
+    container_name: km-agent
+    ports:
+      - "80:80" # Nginx 前端服务
+      - "5000:5000" # Flask API 服务
+    restart: unless-stopped
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # 健康检查
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/api/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    # 资源限制（可选，根据实际情况调整）
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 1G

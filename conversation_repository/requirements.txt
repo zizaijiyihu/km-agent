@@ -1,0 +1,6 @@
+# Conversation Repository Module Dependencies
+# 会话历史存储和管理
+
+# Infrastructure (install from parent)
+# ks_infrastructure - provides db_session
+# Install from parent directory: pip install -e ../ks_infrastructure
